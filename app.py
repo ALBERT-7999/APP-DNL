@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="App de Reparto - MediPort", page_icon="📦", layout="wide")
 
 st.markdown("<h1>📦 App de Reparto - MediPort</h1>", unsafe_allow_html=True)
-st.markdown("<span>Control de Flota, Ruteo por Distritos y Despachos - Roxfarma</span>", unsafe_allow_html=True)
+st.markdown("<span>Control de Flota, Ruteo por Distritos y Formato de Ruta FOR-23</span>", unsafe_allow_html=True)
 st.divider()
 
 # --- INICIALIZAR MEMORIA GLOBAL ---
@@ -18,13 +18,16 @@ if "df_flota" not in st.session_state:
 if "df_pedidos" not in st.session_state:
     st.session_state.df_pedidos = None
 
+if "asignaciones" not in st.session_state:
+    st.session_state.asignaciones = {}
+
 
 # --- MENÚ LATERAL ---
 st.sidebar.title("⚙️ Menú Principal")
 menu = st.sidebar.selectbox("Navegación", [
     "1. Panel de Control (Personal y Flota)", 
     "2. Ruteo y Asignación por Distritos", 
-    "3. Control de Reparto en Ruta"
+    "3. Control de Reparto en Ruta (FOR-23)"
 ])
 
 
@@ -85,12 +88,16 @@ if menu == "1. Panel de Control (Personal y Flota)":
 elif menu == "2. Ruteo y Asignación por Distritos":
     st.subheader("🗺️ Ruteo, Asignación de Placas y Programación (Siguiente Día)")
     
-    # Cargar Excel de Guías
     uploaded_file = st.file_uploader("Sube tu archivo Excel de Guías de Roxfarma", type=["xlsx", "xls"])
     
     if uploaded_file is not None:
         try:
             st.session_state.df_pedidos = pd.read_excel(uploaded_file)
+            # Asegurar columnas base para estado si no existen
+            if "ESTADO_REPARTO" not in st.session_state.df_pedidos.columns:
+                st.session_state.df_pedidos["ESTADO_REPARTO"] = "En Ruta (ER)"
+            if "HORA_LLEGADA" not in st.session_state.df_pedidos.columns:
+                st.session_state.df_pedidos["HORA_LLEGADA"] = ""
             st.success("¡Archivo Excel cargado exitosamente!")
         except Exception as e:
             st.error(f"Error al leer el archivo: {e}")
@@ -98,9 +105,8 @@ elif menu == "2. Ruteo y Asignación por Distritos":
     if st.session_state.df_pedidos is not None:
         df = st.session_state.df_pedidos
         st.markdown("### 📊 Vista previa de Pedidos Cargados")
-        st.dataframe(df.head(), use_container_width=True)
+        st.dataframe(df.head(3), use_container_width=True)
         
-        # Buscar columna de distrito de forma inteligente
         columnas_disponibles = df.columns.tolist()
         col_distrito = st.selectbox("Selecciona la columna que indica el DISTRITO en tu Excel", columnas_disponibles)
         
@@ -116,11 +122,9 @@ elif menu == "2. Ruteo y Asignación por Distritos":
             distrito_elegido = st.selectbox("Selecciona el Distrito a Rutear", distritos_unicos)
             
             if distrito_elegido:
-                # Filtrar pedidos del distrito
                 pedidos_distrito = df[df[col_distrito] == distrito_elegido]
-                st.write(f"Se encontraron **{len(pedidos_distrito)}** pedidos/guías para el distrito: **{distrito_elegido}**")
+                st.write(f"Se encontraron **{len(pedidos_distrito)}** pedidos para el distrito: **{distrito_elegido}**")
                 
-                # Opciones de asignación
                 col_asg1, col_asg2 = st.columns(2)
                 
                 with col_asg1:
@@ -129,7 +133,7 @@ elif menu == "2. Ruteo y Asignación por Distritos":
                         placa_asignada = st.selectbox("Asignar Placa de Camión", placas_disponibles)
                     else:
                         placa_asignada = "Sin vehículo"
-                        st.warning("Registra vehículos en el Panel de Control.")
+                        st.warning("⚠️ Registra vehículos en el Panel de Control.")
                         
                 with col_asg2:
                     if not st.session_state.df_conductores.empty:
@@ -137,22 +141,81 @@ elif menu == "2. Ruteo y Asignación por Distritos":
                         conductor_asignado = st.selectbox("Asignar Conductor", conductores_disponibles)
                     else:
                         conductor_asignado = "Sin conductor"
-                        st.warning("Registra conductores en el Panel de Control.")
+                        st.warning("⚠️ Registra conductores en el Panel de Control.")
                 
                 if st.button("Confirmar Asignación para el Siguiente Día"):
-                    st.success(f"¡Ruta asignada con éxito al camión **{placa_asignada}** (Conductor: {conductor_asignado}) para el distrito **{distrito_elegido}** el día {fecha_manana}!")
+                    st.success(f"¡Ruta asignada al camión **{placa_asignada}** (Conductor: {conductor_asignado}) para **{distrito_elegido}** el {fecha_manana}!")
     else:
         st.info("👆 Por favor, sube un archivo Excel para habilitar el ruteo por distritos.")
 
 
 # ==========================================
-# MÓDULO 3: CONTROL DE REPARTO EN RUTA
+# MÓDULO 3: CONTROL DE REPARTO EN RUTA (FORMATO FOR-23)
 # ==========================================
-elif menu == "3. Control de Reparto en Ruta":
-    st.subheader("📍 Seguimiento de Entregas (ER, EN, FH)")
-    st.info("Aquí los conductores o el coordinador visualizan las guías asignadas en ruta, registran horas y toman fotos de V°B°.")
+elif menu == "3. Control de Reparto en Ruta (FOR-23)":
+    st.subheader("📋 Formato Digital de Ruta y Control de Entregas (FOR-23)")
+    st.info("Vista optimizada para conductores en ruta: Registro de hora, estado de entrega (ER, EN, FH) y evidencia fotográfica.")
     
     if st.session_state.df_pedidos is not None:
-        st.dataframe(st.session_state.df_pedidos, use_container_width=True)
+        df = st.session_state.df_pedidos
+        
+        # Intentar detectar nombres de columnas habituales en el Excel del usuario
+        cols_lower = [c.lower() for c in df.columns]
+        
+        # Selector para que el usuario mapee las 3 columnas obligatorias si sus nombres varían
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            col_guia = st.selectbox("Columna de N° de Guía", df.columns)
+        with c2:
+            col_cliente = st.selectbox("Columna de Cliente / Farmacia", df.columns)
+        with c3:
+            col_pedido = st.selectbox("Columna de N° de Pedido", df.columns)
+            
+        st.divider()
+        st.markdown("### 🔍 Listado de Guías Asignadas en Ruta")
+        
+        # Mostrar tabla simplificada y limpia como lo solicitó
+        df_vista = df[[col_guia, col_cliente, col_pedido]].copy()
+        df_vista["Estado Actual"] = df["ESTADO_REPARTO"]
+        df_vista["Hora Llegada"] = df["HORA_LLEGADA"]
+        
+        st.dataframe(df_vista, use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("### ✍️ Registrar Gestión de Entrega por Guía")
+        
+        guia_seleccionada = st.selectbox("Seleccione el N° de Guía a Gestionar", df[col_guia].tolist())
+        
+        if guia_seleccionada:
+            idx = df[df[col_guia] == guia_seleccionada].index[0]
+            cliente_info = df.loc[idx, col_cliente]
+            pedido_info = df.loc[idx, col_pedido]
+            
+            st.write(f"**Cliente / Farmacia:** {cliente_info} | **N° Pedido:** {pedido_info}")
+            
+            col_reg1, col_reg2 = st.columns(2)
+            with col_reg1:
+                nuevo_estado = st.selectbox("Estado de Entrega", ["En Ruta (ER)", "Entregado (EN)", "Fuera de Hora (FH)"], index=1)
+                hora_ingresada = st.text_input("Hora de Llegada / Entrega (Ej. 14:30)", value=datetime.now().strftime("%H:%M"))
+            with col_reg2:
+                foto_guia = st.file_uploader("Subir Foto de Guía con Sello y V°B° del Cliente", type=["png", "jpg", "jpeg"])
+                
+            if st.button("Guardar Registro de Entrega"):
+                df.loc[idx, "ESTADO_REPARTO"] = nuevo_estado
+                df.loc[idx, "HORA_LLEGADA"] = hora_ingresada
+                st.success(f"¡Guía {guia_seleccionada} actualizada correctamente como **{nuevo_estado}** a las **{hora_ingresada}**!")
+                
+        st.divider()
+        # Botón para descargar el reporte consolidado final estilo FOR-23
+        if st.button("📥 Generar y Descargar Reporte Final en Excel (FOR-23)"):
+            archivo_reporte = f"Reporte_FOR23_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+            df.to_excel(archivo_reporte, index=False)
+            with open(archivo_reporte, "rb") as f:
+                st.download_button(
+                    label="⬇️ Descargar Archivo Excel Consolidado",
+                    data=f,
+                    file_name=archivo_reporte,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
     else:
-        st.warning("No hay pedidos cargados. Sube el Excel en el módulo de Ruteo.")
+        st.warning("⚠️ Primero debes subir tu archivo Excel con las guías en el módulo '2. Ruteo y Asignación por Distritos'.")
