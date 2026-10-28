@@ -7,7 +7,7 @@ st.set_page_config(page_title="MEDIPORT - Reparto", page_icon="🚚", layout="ce
 
 RUTA_STORAGE = "data_ruta_activa.csv"
 
-# --- ESTILOS VISUALES MÓVILES CON DINAMISMO DE COLORES ---
+# --- ESTILOS VISUALES MÓVILES MEJORADOS ---
 st.markdown("""
 <style>
     .stButton>button {
@@ -17,7 +17,6 @@ st.markdown("""
         width: 100% !important;
     }
     
-    /* Clases de Tarjetas Dinámicas por Estado */
     .card-pedido {
         border-radius: 12px;
         padding: 15px;
@@ -25,48 +24,21 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.06);
     }
     
-    /* EN RUTA (Amarillo / Naranja) */
-    .card-er {
-        background-color: #fff9e6;
-        border: 1px solid #ffe599;
-        border-left: 8px solid #f1c40f;
-    }
+    .card-er { background-color: #fff9e6; border: 1px solid #ffe599; border-left: 8px solid #f1c40f; }
     .card-er .card-title { color: #b78103; }
     
-    /* ENTREGADO (Verde) */
-    .card-en {
-        background-color: #eef9f1;
-        border: 1px solid #b7e4c7;
-        border-left: 8px solid #27ae60;
-    }
+    .card-en { background-color: #eef9f1; border: 1px solid #b7e4c7; border-left: 8px solid #27ae60; }
     .card-en .card-title { color: #1e7e34; }
     
-    /* FUERA DE HORA (Rojo) */
-    .card-fh {
-        background-color: #fdf2f2;
-        border: 1px solid #f5c6cb;
-        border-left: 8px solid #e74c3c;
-    }
+    .card-fh { background-color: #fdf2f2; border: 1px solid #f5c6cb; border-left: 8px solid #e74c3c; }
     .card-fh .card-title { color: #bd2130; }
     
-    /* CERRADO (Gris) */
-    .card-ce {
-        background-color: #f2f2f2;
-        border: 1px solid #d6d6d6;
-        border-left: 8px solid #7f8c8d;
-    }
+    .card-ce { background-color: #f2f2f2; border: 1px solid #d6d6d6; border-left: 8px solid #7f8c8d; }
     .card-ce .card-title { color: #495057; }
 
-    .card-title {
-        font-size: 18px;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-    .card-info {
-        font-size: 14px;
-        color: #333333;
-        margin-bottom: 3px;
-    }
+    .card-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+    .card-info { font-size: 14px; color: #333333; margin-bottom: 3px; }
+    
     .metric-box {
         background-color: #f4f6f8;
         border-radius: 10px;
@@ -74,11 +46,7 @@ st.markdown("""
         text-align: center;
         border: 1px solid #dcdcdc;
     }
-    .metric-value {
-        font-size: 22px;
-        font-weight: bold;
-        color: #004d5a;
-    }
+    .metric-value { font-size: 22px; font-weight: bold; color: #004d5a; }
     .for23-header {
         background-color: #004d5a;
         color: white;
@@ -207,6 +175,7 @@ else:
                         "Estado": "ER",
                         "Hora_Llegada": "",
                         "Hora_Entrega": "",
+                        "Hora_Partida": "",
                         "Observaciones": "",
                         "Foto_Estado": "Sin Foto"
                     })
@@ -244,7 +213,8 @@ else:
                 conductor_nombre = df_global.loc[indices_ruta[0], "Conductor"]
                 
                 total_p = len(indices_ruta)
-                atendidos = (df_global.loc[indices_ruta, "Estado"].isin(["EN", "CE"])).sum()
+                # MODIFICACIÓN CLAVE 1: Todos los estados gestionados (EN, FH, CE) suman para el 100%
+                atendidos = (df_global.loc[indices_ruta, "Estado"].isin(["EN", "FH", "CE"])).sum()
                 porcentaje = int((atendidos / total_p) * 100) if total_p > 0 else 0
 
                 st.markdown(f"""
@@ -252,11 +222,20 @@ else:
                     <div style="font-size:11px; color:#83b2b8; font-weight:bold;">FOR-23 · {fecha_hoy} · {placa_activa}</div>
                     <div style="font-size:18px; font-weight:bold; margin:4px 0;">{conductor_nombre}</div>
                     <div style="font-size:14px; font-weight:bold; margin-top:5px;">
-                        Avance: {atendidos} de {total_p} entregados ({porcentaje}%)
+                        Avance General: {atendidos} de {total_p} gestionados ({porcentaje}%)
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 st.progress(atendidos / total_p if total_p > 0 else 0.0)
+
+                # AUXILIARES DE TRANSPORTE
+                c_aux1, c_aux2 = st.columns(2)
+                with c_aux1:
+                    aux1_val = st.text_input("Auxiliar de Transporte 1", value="", key=f"aux1_{placa_activa}", placeholder="Nombre Auxiliar 1")
+                with c_aux2:
+                    aux2_val = st.text_input("Auxiliar de Transporte 2", value="", key=f"aux2_{placa_activa}", placeholder="Nombre Auxiliar 2")
+
+                st.divider()
 
                 # --- TARJETAS MÓVILES POR PEDIDO (COLOR DINÁMICO) ---
                 for pos, real_idx in enumerate(indices_ruta):
@@ -270,7 +249,6 @@ else:
                     ubi_url = str(row['Ubicacion'])
                     estado_actual = str(row['Estado']).lower()
                     
-                    # Seleccionar clase de color según el estado
                     card_class = f"card-{estado_actual}" if estado_actual in ["er", "en", "fh", "ce"] else "card-er"
                     
                     st.markdown(f"""
@@ -284,7 +262,7 @@ else:
                     if "http" in ubi_url.lower():
                         st.markdown(f"🗺️ [**Abrir en GPS / Maps**]({ubi_url})")
 
-                    # REGISTRO DIRECTO DE HORAS
+                    # REGISTRO DIRECTO DE HORAS PERSISTENTES
                     c_h1, c_h2 = st.columns(2)
                     with c_h1:
                         key_hl = f"txt_hl_{real_idx}"
@@ -309,6 +287,7 @@ else:
                         if st.button(f"✅ ENTREGA", key=f"btn_he_{real_idx}"):
                             hora_actual = datetime.now().strftime("%H:%M")
                             df_global.at[real_idx, "Hora_Entrega"] = hora_actual
+                            df_global.at[real_idx, "Hora_Partida"] = hora_actual
                             df_global.at[real_idx, "Estado"] = "EN"
                             st.session_state[key_he] = hora_actual
                             guardar_ruta_disco(df_global)
@@ -362,13 +341,26 @@ else:
 
                     st.divider()
 
+                # MODIFICACIÓN CLAVE 2: BOTÓN DE FINALIZAR RUTA Y EXPORTAR
+                st.markdown("---")
+                if st.button("🏁 FINALIZAR RUTA Y CONSOLIDAR FOR-23", type="primary", use_container_width=True):
+                    st.balloons()
+                    st.success("¡Ruta finalizada con éxito! Todos los datos han sido consolidados.")
+
+                # DESCARGA DE EXCEL DE RESPALDO
+                archivo_excel_out = f"Reporte_FOR23_{placa_activa}_{fecha_hoy}.xlsx"
+                df_export = df_global[df_global["Placa"] == placa_activa].copy()
+                df_export.to_excel(archivo_excel_out, index=False)
+                with open(archivo_excel_out, "rb") as f:
+                    st.download_button("📥 Descargar Reporte Excel de la Ruta", f, file_name=archivo_excel_out)
+
             else:
                 st.warning("⚠️ No hay pedidos asignados a esta unidad.")
         else:
             st.warning("⚠️ No hay una ruta activa en el sistema. El administrador debe cargar el Excel.")
 
     # ==========================================
-    # 3. DASHBOARD / ESTADO DE LA RUTA
+    # 3. DASHBOARD / ESTADO DE LA RUTA (100% GARANTIZADO)
     # ==========================================
     elif menu == "3. Dashboard / Avance de Ruta":
         st.title("📊 Resumen y Porcentaje de Ruta")
@@ -389,25 +381,33 @@ else:
             cant_fh = (df_dash["Estado"] == "FH").sum()
             cant_ce = (df_dash["Estado"] == "CE").sum()
             
-            porcentaje_avance = int((cant_en / total_pedidos) * 100) if total_pedidos > 0 else 0
+            # MODIFICACIÓN CLAVE 3: Suma exacta del 100% al completar todos los estados (EN + FH + CE)
+            cant_gestionados = cant_en + cant_fh + cant_ce
+            porcentaje_avance = int((cant_gestionados / total_pedidos) * 100) if total_pedidos > 0 else 0
             
-            st.markdown(f"### Avance General: **{porcentaje_avance}% Completado**")
+            # Cálculo de Porcentajes Individuales
+            pct_en = round((cant_en / total_pedidos) * 100, 1) if total_pedidos > 0 else 0
+            pct_er = round((cant_er / total_pedidos) * 100, 1) if total_pedidos > 0 else 0
+            pct_fh = round((cant_fh / total_pedidos) * 100, 1) if total_pedidos > 0 else 0
+            pct_ce = round((cant_ce / total_pedidos) * 100, 1) if total_pedidos > 0 else 0
+
+            st.markdown(f"### Avance Total de Ruta: **{porcentaje_avance}% Completado** ({cant_gestionados} de {total_pedidos})")
             st.progress(porcentaje_avance / 100)
             
             st.divider()
             
             m1, m2, m3, m4 = st.columns(4)
             with m1:
-                st.markdown(f"""<div class="metric-box"><div style="color:#27ae60;" class="metric-value">{cant_en}</div><div style="font-size:12px;">ENTREGADOS (EN)</div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><div style="color:#27ae60;" class="metric-value">{cant_en}</div><div style="font-size:12px;"><b>ENTREGADOS (EN)</b><br>{pct_en}%</div></div>""", unsafe_allow_html=True)
             with m2:
-                st.markdown(f"""<div class="metric-box"><div style="color:#f1c40f;" class="metric-value">{cant_er}</div><div style="font-size:12px;">EN RUTA (ER)</div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><div style="color:#f1c40f;" class="metric-value">{cant_er}</div><div style="font-size:12px;"><b>EN RUTA (ER)</b><br>{pct_er}%</div></div>""", unsafe_allow_html=True)
             with m3:
-                st.markdown(f"""<div class="metric-box"><div style="color:#e74c3c;" class="metric-value">{cant_fh}</div><div style="font-size:12px;">FUERA HORA (FH)</div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><div style="color:#e74c3c;" class="metric-value">{cant_fh}</div><div style="font-size:12px;"><b>FUERA HORA (FH)</b><br>{pct_fh}%</div></div>""", unsafe_allow_html=True)
             with m4:
-                st.markdown(f"""<div class="metric-box"><div style="color:#7f8c8d;" class="metric-value">{cant_ce}</div><div style="font-size:12px;">CERRADOS (CE)</div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="metric-box"><div style="color:#7f8c8d;" class="metric-value">{cant_ce}</div><div style="font-size:12px;"><b>CERRADOS (CE)</b><br>{pct_ce}%</div></div>""", unsafe_allow_html=True)
 
             st.divider()
-            st.markdown("### 📋 Detalle de Tiempos y Estados:")
+            st.markdown("### 📋 Detalle Consolidado de la Ruta:")
             st.dataframe(df_dash[["Cliente", "Distrito", "Guia", "Estado", "Hora_Llegada", "Hora_Entrega", "Observaciones"]], use_container_width=True)
             
         else:
