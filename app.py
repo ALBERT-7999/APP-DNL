@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
+import os
 from datetime import datetime
 
 st.set_page_config(page_title="MEDIPORT - Reparto", page_icon="🚚", layout="centered")
+
+# Archivo de persistencia local para compartir data entre distintos dispositivos/celulares
+RUTA_STORAGE = "data_ruta_activa.csv"
 
 # --- ESTILOS VISUALES Y BRANDING MEDIPORT ---
 st.markdown("""
@@ -57,13 +61,23 @@ USUARIOS = {
     "conductor1": {"pass": "1234", "rol": "conductor", "nombre": "CONDUCTOR MEDIPORT 1"}
 }
 
-# --- MEMORIA GLOBAL ---
+# --- FUNCIONES DE ALMACENAMIENTO PERSISTENTE ---
+def cargar_ruta_disco():
+    if os.path.exists(RUTA_STORAGE):
+        try:
+            return pd.read_csv(RUTA_STORAGE, dtype=str)
+        except Exception:
+            return None
+    return None
+
+def guardar_ruta_disco(df):
+    df.to_csv(RUTA_STORAGE, index=False)
+
+# --- MEMORIA DE LA SESIÓN ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "usuario_actual" not in st.session_state:
     st.session_state.usuario_actual = None
-if "df_ruta" not in st.session_state:
-    st.session_state.df_ruta = None
 if "ruta_iniciada" not in st.session_state:
     st.session_state.ruta_iniciada = False
 
@@ -96,7 +110,6 @@ if not st.session_state.autenticado:
                 st.error("❌ Usuario o contraseña incorrectos.")
 
 else:
-    # --- MENÚ LATERAL CON USUARIO LOGUEADO ---
     user_info = st.session_state.usuario_actual
     
     st.sidebar.markdown(f"👤 **Usuario:** {user_info['nombre']}")
@@ -109,14 +122,13 @@ else:
         
     st.sidebar.divider()
     
-    # Restringir menú según el rol
     if user_info["rol"] == "admin":
         menu = st.sidebar.radio("📌 Opciones de Menú", ["1. Cargar Data de Reparto", "2. Vista de Ruta (Conductor)"])
     else:
         menu = "2. Vista de Ruta (Conductor)"
 
     # ==========================================
-    # 1. CARGA DE DATA (SÓLO ADMIN)
+    # 1. CARGA DE DATA (ADMIN)
     # ==========================================
     if menu == "1. Cargar Data de Reparto":
         st.title("📁 Carga del Archivo de Reparto")
@@ -140,7 +152,7 @@ else:
                     col_bul = st.selectbox("Bultos / Cajas", cols, index=min(3, len(cols)-1))
                     col_ubi = st.selectbox("Ubicación GPS / Dirección", cols, index=min(4, len(cols)-1))
                     
-                if st.button("🚀 Cargar y Crear Ruta", type="primary", use_container_width=True):
+                if st.button("🚀 Cargar y Publicar Ruta para Conductores", type="primary", use_container_width=True):
                     df_normal = pd.DataFrame({
                         "Cliente": df[col_cli].astype(str),
                         "Distrito": df[col_dis].astype(str),
@@ -152,24 +164,25 @@ else:
                         "Foto_Estado": "Sin Foto"
                     })
                     
-                    st.session_state.df_ruta = df_normal
+                    guardar_ruta_disco(df_normal)
                     st.session_state.ruta_iniciada = False
-                    st.success("¡Data cargada con éxito! La ruta ya está lista para los conductores.")
+                    st.success("¡Data publicada con éxito! Todos los conductores ya pueden ver su ruta desde su celular.")
                     
             except Exception as e:
                 st.error(f"Error al procesar el Excel: {e}")
                 
-        elif st.session_state.df_ruta is not None:
-            st.success("Hay una ruta activa cargada en memoria.")
-            st.dataframe(st.session_state.df_ruta.head(5), use_container_width=True)
+        df_act = cargar_ruta_disco()
+        if df_act is not None:
+            st.success(f"Hay una ruta activa publicada con {len(df_act)} pedidos.")
+            st.dataframe(df_act.head(5), use_container_width=True)
 
     # ==========================================
     # 2. VISTA DE RUTA (CONDUCTOR / AUXILIARES)
     # ==========================================
     elif menu == "2. Vista de Ruta (Conductor)":
-        if st.session_state.df_ruta is not None:
-            df = st.session_state.df_ruta
-            
+        df = cargar_ruta_disco()
+        
+        if df is not None:
             fecha_hoy = datetime.now().strftime("%Y-%m-%d")
             nombre_cond_defecto = user_info["nombre"] if user_info["rol"] == "conductor" else "KAIQUE CHUQUIPIONDO CARDENAS"
             
@@ -217,7 +230,7 @@ else:
                 st.markdown(f"#### **#{num_item} · {row['Cliente']}**")
                 st.caption(f"📍 {row['Distrito']} · 📄 {row['Guia']} · 📦 {row['Bultos']} bultos")
                 
-                if "http" in row['Ubicacion'].lower():
+                if "http" in str(row['Ubicacion']).lower():
                     st.markdown(f"🗺️ [Abrir en GPS / Maps]({row['Ubicacion']})")
                 
                 c_est, c_ord1, c_ord2 = st.columns([2, 1, 1])
@@ -225,7 +238,7 @@ else:
                 with c_est:
                     opciones = ["ER (En Ruta)", "EN (Entregado)", "FH (Fuera de Hora)", "CE (Cerrado)"]
                     map_idx = {"ER": 0, "EN": 1, "FH": 2, "CE": 3}
-                    curr_idx = map_idx.get(row['Estado'], 0)
+                    curr_idx = map_idx.get(str(row['Estado']), 0)
                     
                     nuevo_estado = st.selectbox(
                         "Estado",
@@ -234,26 +247,23 @@ else:
                         key=f"est_{idx}"
                     )
                     cod_est = nuevo_estado.split(" ")[0]
-                    if cod_est != row['Estado']:
-                        st.session_state.df_ruta.at[idx, "Estado"] = cod_est
+                    if cod_est != str(row['Estado']):
+                        df.at[idx, "Estado"] = cod_est
+                        guardar_ruta_disco(df)
                         st.rerun()
                         
                 with c_ord1:
                     if idx > 0:
                         if st.button("▲ Subir", key=f"up_{idx}"):
-                            st.session_state.df_ruta.iloc[idx], st.session_state.df_ruta.iloc[idx-1] = (
-                                st.session_state.df_ruta.iloc[idx-1].copy(),
-                                st.session_state.df_ruta.iloc[idx].copy()
-                            )
+                            df.iloc[idx], df.iloc[idx-1] = df.iloc[idx-1].copy(), df.iloc[idx].copy()
+                            guardar_ruta_disco(df)
                             st.rerun()
                             
                 with c_ord2:
                     if idx < len(df) - 1:
                         if st.button("▼ Bajar", key=f"dn_{idx}"):
-                            st.session_state.df_ruta.iloc[idx], st.session_state.df_ruta.iloc[idx+1] = (
-                                st.session_state.df_ruta.iloc[idx+1].copy(),
-                                st.session_state.df_ruta.iloc[idx].copy()
-                            )
+                            df.iloc[idx], df.iloc[idx+1] = df.iloc[idx+1].copy(), df.iloc[idx].copy()
+                            guardar_ruta_disco(df)
                             st.rerun()
                 
                 # --- CARGA DE FOTO DE EVIDENCIA ---
@@ -264,19 +274,22 @@ else:
                 )
                 
                 if foto_subida is not None:
-                    st.session_state.df_ruta.at[idx, "Foto_Estado"] = "Foto Registrada"
+                    df.at[idx, "Foto_Estado"] = "Foto Registrada"
+                    guardar_ruta_disco(df)
                 
                 # --- OBSERVACIÓN ---
-                obs = st.text_input("Observación", value=row["Observaciones"], key=f"obs_{idx}", placeholder="Comentario opcional...")
-                if obs != row["Observaciones"]:
-                    st.session_state.df_ruta.at[idx, "Observaciones"] = obs
+                obs_actual = str(row["Observaciones"]) if pd.notna(row["Observaciones"]) else ""
+                obs = st.text_input("Observación", value=obs_actual, key=f"obs_{idx}", placeholder="Comentario opcional...")
+                if obs != obs_actual:
+                    df.at[idx, "Observaciones"] = obs
+                    guardar_ruta_disco(df)
 
                 st.divider()
 
             # --- REPORTES Y CIERRE ---
             if st.button("📄 Finalizar Ruta y Descargar Reporte Excel", use_container_width=True):
                 archivo_out = f"Reporte_FOR23_{placa}_{fecha_hoy}.xlsx"
-                st.session_state.df_ruta.to_excel(archivo_out, index=False)
+                df.to_excel(archivo_out, index=False)
                 with open(archivo_out, "rb") as f:
                     st.download_button("⬇️ Descargar Reporte Consolidado", f, file_name=archivo_out)
 
