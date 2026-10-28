@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="App de Reparto - MediPort", page_icon="📦", layout="wide")
 
 st.markdown("<h1>📦 App de Reparto - MediPort</h1>", unsafe_allow_html=True)
-st.markdown("<span>Control de Flota, Ruteo por Zonas (Norte/Sur/Este) y Formato FOR-23</span>", unsafe_allow_html=True)
+st.markdown("<span>Control de Flota, Ruteo Flexible por Zonas y Formato FOR-23</span>", unsafe_allow_html=True)
 st.divider()
 
 # --- INICIALIZAR MEMORIA GLOBAL ---
@@ -26,7 +26,7 @@ if "df_final" not in st.session_state:
 st.sidebar.title("⚙️ Menú Principal")
 menu = st.sidebar.selectbox("Navegación", [
     "1. Panel de Control (Personal y Flota)", 
-    "2. Ruteo por Zonas (Norte/Sur/Este)", 
+    "2. Ruteo Agil por Zonas (Norte/Sur/Este)", 
     "3. Control de Reparto en Ruta (FOR-23)"
 ])
 
@@ -83,10 +83,10 @@ if menu == "1. Panel de Control (Personal y Flota)":
 
 
 # ==========================================
-# MÓDULO 2: RUTEO POR ZONAS (NORTE / SUR / ESTE) Y ARCHIVOS
+# MÓDULO 2: RUTEO ÁGIL POR ZONAS Y REASIGNACIÓN CRUZADA
 # ==========================================
-elif menu == "2. Ruteo por Zonas (Norte/Sur/Este)":
-    st.subheader("📁 Carga de Documentación y Ruteo por Zonas (Norte / Sur / Este)")
+elif menu == "2. Ruteo Agil por Zonas (Norte/Sur/Este)":
+    st.subheader("📁 Carga de Documentación y Ruteo Ágil por Zonas")
     
     col_up1, col_up2 = st.columns(2)
     
@@ -123,45 +123,68 @@ elif menu == "2. Ruteo por Zonas (Norte/Sur/Este)":
         
         columnas_disponibles = df.columns.tolist()
         col_distrito = st.selectbox("Selecciona la columna que indica el DISTRITO en el Archivo Final", columnas_disponibles)
+        col_guia_opt = st.selectbox("Selecciona la columna de N° Guía / Pedido para identificar las cargas", columnas_disponibles)
         
-        if col_distrito:
+        if col_distrito and col_guia_opt:
             st.markdown("---")
-            st.markdown("### 🧭 Selección de Macrozona de Salida (Siguiente Día)")
+            st.markdown("### 🧭 Asignación de Ruta y Carga de Camión")
             
-            zona_seleccionada = st.radio("Selecciona la Zona de Reparto:", ["NORTE", "SUR", "ESTE"], horizontal=True)
-            
-            fecha_manana = (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y")
-            st.info(f"📅 Despacho programado para la **Zona {zona_seleccionada}** el día: **{fecha_manana}**")
+            col_z1, col_z2 = st.columns(2)
+            with col_z1:
+                zona_principal = st.radio("Zona Principal del Camión:", ["NORTE", "SUR", "ESTE"], horizontal=True)
+            with col_z2:
+                fecha_manana = (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y")
+                st.info(f"📅 Programando ruta para el día: **{fecha_manana}**")
             
             distritos_unicos = df[col_distrito].dropna().unique().tolist()
-            distrito_elegido = st.selectbox(f"Selecciona el Distrito específico (Zona {zona_seleccionada})", distritos_unicos)
             
-            if distrito_elegido:
-                pedidos_zona = df[df[col_distrito] == distrito_elegido]
-                st.write(f"Se encontraron **{len(pedidos_zona)}** registros para el distrito **{distrito_elegido}** (Zona **{zona_seleccionada}**).")
-                
-                col_asg1, col_asg2 = st.columns(2)
-                
-                with col_asg1:
-                    if not st.session_state.df_flota.empty:
-                        placas_disponibles = st.session_state.df_flota["Placa"].tolist()
-                        placa_asignada = st.selectbox("Asignar Placa de Camión", placas_disponibles)
-                    else:
-                        placa_asignada = "Sin vehículo"
-                        st.warning("⚠️ Registra vehículos en el Panel de Control.")
-                        
-                with col_asg2:
-                    if not st.session_state.df_conductores.empty:
-                        conductores_disponibles = (st.session_state.df_conductores["Nombres"] + " " + st.session_state.df_conductores["Apellidos"]).tolist()
-                        conductor_asignado = st.selectbox("Asignar Conductor", conductores_disponibles)
-                    else:
-                        conductor_asignado = "Sin conductor"
-                        st.warning("⚠️ Registra conductores en el Panel de Control.")
-                
-                if st.button(f"Confirmar Asignación - Zona {zona_seleccionada} (Siguiente Día)"):
-                    st.success(f"¡Ruta de la **Zona {zona_seleccionada}** asignada al camión **{placa_asignada}** (Conductor: {conductor_asignado}) para el distrito **{distrito_elegido}** el {fecha_manana}!")
+            # 💡 MEJORA 1: Selección múltiple de distritos para hacerlo en segundos
+            distritos_seleccionados = st.multiselect(
+                f"⚡ Selecciona uno o Varios Distritos para la Zona {zona_principal}:",
+                options=distritos_unicos,
+                default=[]
+            )
+            
+            pedidos_base = df[df[col_distrito].isin(distritos_seleccionados)] if distritos_seleccionados else pd.DataFrame()
+            
+            # 💡 MEJORA 2: Agregar pedidos adicionales de OTRAS zonas al mismo camión
+            st.markdown("#### ➕ ¿Deseas agregar pedidos extra de OTRAS zonas a este camión?")
+            pedidos_resto = df[~df[col_distrito].isin(distritos_seleccionados)] if distritos_seleccionados else df
+            guias_extra = pedidos_resto[col_guia_opt].dropna().astype(str).unique().tolist()
+            
+            extra_seleccionados = st.multiselect(
+                "Selecciona Guías/Pedidos extra de otras zonas (Ej. pedido de Norte para camion de Sur):",
+                options=guias_extra
+            )
+            
+            pedidos_extra = df[df[col_guia_opt].astype(str).isin(extra_seleccionados)] if extra_seleccionados else pd.DataFrame()
+            
+            # Consolidado total
+            carga_total = pd.concat([pedidos_base, pedidos_extra]).drop_duplicates()
+            
+            st.write(f"📦 Total de guías/pedidos en este camión: **{len(carga_total)}**")
+            
+            col_asg1, col_asg2 = st.columns(2)
+            with col_asg1:
+                if not st.session_state.df_flota.empty:
+                    placas_disponibles = st.session_state.df_flota["Placa"].tolist()
+                    placa_asignada = st.selectbox("Asignar Placa de Camión", placas_disponibles)
+                else:
+                    placa_asignada = "Sin vehículo"
+                    st.warning("⚠️ Registra vehículos en el Panel de Control.")
+                    
+            with col_asg2:
+                if not st.session_state.df_conductores.empty:
+                    conductores_disponibles = (st.session_state.df_conductores["Nombres"] + " " + st.session_state.df_conductores["Apellidos"]).tolist()
+                    conductor_asignado = st.selectbox("Asignar Conductor", conductores_disponibles)
+                else:
+                    conductor_asignado = "Sin conductor"
+                    st.warning("⚠️ Registra conductores en el Panel de Control.")
+            
+            if st.button(f"Confirmar y Consolidar Carga de Camión - {placa_asignada}"):
+                st.success(f"¡Carga consolidada con éxito para el camión **{placa_asignada}** ({conductor_asignado}) con **{len(carga_total)}** pedidos asignados para el {fecha_manana}!")
     else:
-        st.info("👆 Sube obligatoriamente el **Archivo Final** para habilitar la distribución por Zonas (Norte, Sur y Este).")
+        st.info("👆 Sube obligatoriamente el **Archivo Final** para habilitar la asignación ágil.")
 
 
 # ==========================================
@@ -185,7 +208,6 @@ elif menu == "3. Control de Reparto en Ruta (FOR-23)":
         st.divider()
         st.markdown("### 🔍 Listado de Guías Asignadas en Ruta")
         
-        # Extracción segura garantizando que no existan nombres repetidos en pandas
         serie_guia = df[col_guia].astype(str)
         serie_cliente = df[col_cliente].astype(str)
         serie_pedido = df[col_pedido].astype(str)
@@ -234,7 +256,4 @@ elif menu == "3. Control de Reparto en Ruta (FOR-23)":
                     data=f,
                     file_name=archivo_reporte,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="dl_btn_final"
-                )
-    else:
-        st.warning("⚠️ Primero debes subir el **Archivo Final** en el módulo '2. Ruteo por Zonas (Norte/Sur/Este)'.")
+                    key="dl_btn_
