@@ -7,48 +7,55 @@ st.set_page_config(page_title="MEDIPORT - Reparto", page_icon="🚚", layout="ce
 
 RUTA_STORAGE = "data_ruta_activa.csv"
 
-# --- ESTILOS VISUALES MEDIPORT ---
+# --- ESTILOS VISUALES MÓVILES MEJORADOS (APP FRIENDLY) ---
 st.markdown("""
 <style>
-    .mediport-logo {
-        text-align: center;
-        background-color: #004d5a;
-        color: white;
-        padding: 20px;
+    /* Estilos generales móviles */
+    .stButton>button {
+        border-radius: 10px !important;
+        font-weight: bold !important;
+        height: 3em !important;
+        width: 100% !important;
+    }
+    .card-pedido {
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-left: 6px solid #004d5a;
         border-radius: 12px;
-        margin-bottom: 20px;
+        padding: 15px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
-    .mediport-logo h1 {
-        color: white !important;
-        font-weight: 900;
-        font-size: 28px;
-        margin: 0;
-        letter-spacing: 2px;
+    .card-title {
+        color: #004d5a;
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 5px;
     }
-    .mediport-logo p {
-        color: #83b2b8;
-        margin: 5px 0 0 0;
-        font-size: 13px;
-        font-weight: 600;
+    .card-info {
+        font-size: 14px;
+        color: #444;
+        margin-bottom: 3px;
+    }
+    .metric-box {
+        background-color: #f4f6f8;
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+        border: 1px solid #dcdcdc;
+    }
+    .metric-value {
+        font-size: 22px;
+        font-weight: bold;
+        color: #004d5a;
     }
     .for23-header {
         background-color: #004d5a;
         color: white;
         padding: 18px;
         border-radius: 12px;
-        margin-bottom: 12px;
-    }
-    .for23-sub {
-        font-size: 11px;
-        color: #83b2b8;
-        font-weight: bold;
-        letter-spacing: 0.5px;
-    }
-    .for23-driver {
-        font-size: 20px;
-        font-weight: 800;
-        margin: 4px 0;
-        text-transform: uppercase;
+        margin-bottom: 15px;
+        text-align: center;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -75,8 +82,6 @@ if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 if "usuario_actual" not in st.session_state:
     st.session_state.usuario_actual = None
-if "ruta_iniciada" not in st.session_state:
-    st.session_state.ruta_iniciada = False
 
 
 # ==========================================
@@ -84,18 +89,18 @@ if "ruta_iniciada" not in st.session_state:
 # ==========================================
 if not st.session_state.autenticado:
     st.markdown("""
-    <div class="mediport-logo">
-        <h1>MEDIPORT</h1>
-        <p>SISTEMA DE CONTROL DE REPARTO Y LOGÍSTICA</p>
+    <div class="for23-header">
+        <h1 style="margin:0; font-size:26px;">MEDIPORT</h1>
+        <p style="margin:5px 0 0 0; color:#83b2b8; font-size:12px;">SISTEMA MÓVIL DE LOGÍSTICA Y REPARTO</p>
     </div>
     """, unsafe_allow_html=True)
     
     st.subheader("🔑 Iniciar Sesión")
     
     with st.form("form_login"):
-        user_input = st.text_input("Usuario", placeholder="Ingresa tu usuario").strip().lower()
-        pass_input = st.text_input("Contraseña", type="password", placeholder="Ingresa tu contraseña")
-        btn_login = st.form_submit_button("Ingresar al Sistema", type="primary", use_container_width=True)
+        user_input = st.text_input("Usuario", placeholder="Ej. kaique").strip().lower()
+        pass_input = st.text_input("Contraseña", type="password", placeholder="••••••••")
+        btn_login = st.form_submit_button("🚀 Ingresar", type="primary")
         
         if btn_login:
             if user_input in USUARIOS and USUARIOS[user_input]["pass"] == pass_input:
@@ -119,24 +124,31 @@ else:
         
     st.sidebar.divider()
     
+    # Opciones de Menú
     if user_info["rol"] == "admin":
-        menu = st.sidebar.radio("📌 Opciones de Menú", ["1. Cargar Data de Reparto", "2. Vista de Ruta (Conductor)"])
+        menu = st.sidebar.radio("📌 Menú de Navegación", [
+            "1. Cargar Data de Reparto", 
+            "2. Mi Ruta en Campo (FOR-23)", 
+            "3. Dashboard / Avance de Ruta"
+        ])
     else:
-        menu = "2. Vista de Ruta (Conductor)"
+        menu = st.sidebar.radio("📌 Menú Conductor", [
+            "2. Mi Ruta en Campo (FOR-23)", 
+            "3. Dashboard / Avance de Ruta"
+        ])
 
     # ==========================================
     # 1. CARGA DE DATA (ADMINISTRADOR)
     # ==========================================
     if menu == "1. Cargar Data de Reparto":
-        st.title("📁 Carga del Archivo de Reparto")
-        st.info("Sube el Excel consolidado. Mapea la columna PLACA correctamente.")
+        st.title("📁 Carga del Archivo Consolidado")
+        st.info("Sube el Excel con el ruteo del día para ser compartido a los celulares.")
         
         archivo = st.file_uploader("Seleccionar Excel (.xlsx, .xls)", type=["xlsx", "xls"])
         
         if archivo is not None:
             try:
                 df = pd.read_excel(archivo)
-                
                 st.markdown("### 📊 Mapeo de Columnas del Excel")
                 cols = df.columns.tolist()
                 
@@ -149,10 +161,9 @@ else:
                 with c2:
                     col_bul = st.selectbox("Bultos / Cajas", cols, index=min(4, len(cols)-1))
                     col_ubi = st.selectbox("Ubicación GPS / Dirección", cols, index=min(5, len(cols)-1))
-                    col_plc = st.selectbox("Placa del Vehículo (⚠️ NO seleccionar guía aquí)", cols, index=min(6, len(cols)-1))
+                    col_plc = st.selectbox("Placa del Vehículo", cols, index=min(6, len(cols)-1))
                     
-                if st.button("🚀 Cargar y Publicar Rutas por Vehículo", type="primary", use_container_width=True):
-                    # Normalización estricta de nombres y espacios
+                if st.button("🚀 Publicar Rutas para el Día", type="primary"):
                     cond_serie = df[col_cond].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.upper()
                     placa_serie = df[col_plc].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.upper()
                     
@@ -172,8 +183,7 @@ else:
                     })
                     
                     guardar_ruta_disco(df_normal)
-                    st.session_state.ruta_iniciada = False
-                    st.success("¡Data cargada y organizada correctamente!")
+                    st.success("¡Data cargada correctamente! Todos los conductores ya pueden acceder.")
                     st.rerun()
                     
             except Exception as e:
@@ -181,173 +191,186 @@ else:
                 
         df_act = cargar_ruta_disco()
         if df_act is not None and not df_act.empty:
-            num_placas = df_act['Placa'].nunique()
-            st.success(f"Hay un total de {len(df_act)} pedidos activos distribuidos en {num_placas} vehículo(s).")
-            
-            # Resumen consolidado por camión
-            st.markdown("#### 📊 Resumen por Vehículo / Conductor:")
-            resumen = df_act.groupby(["Placa", "Conductor"]).size().reset_index(name="Cant. Pedidos")
-            st.dataframe(resumen, use_container_width=True)
+            st.success(f"Carga Activa: {len(df_act)} pedidos registrados en {df_act['Placa'].nunique()} vehículo(s).")
+            st.dataframe(df_act[["Placa", "Conductor", "Cliente", "Guia"]].head(5), use_container_width=True)
 
     # ==========================================
-    # 2. VISTA DE RUTA (CONDUCTOR / AUXILIARES)
+    # 2. VISTA DE RUTA EN CAMPO (FOR-23 MÓVIL)
     # ==========================================
-    elif menu == "2. Vista de Ruta (Conductor)":
+    elif menu == "2. Mi Ruta en Campo (FOR-23)":
         df_global = cargar_ruta_disco()
         
         if df_global is not None and not df_global.empty:
             fecha_hoy = datetime.now().strftime("%Y-%m-%d")
             
-            # Formatear lista de unidades para el selector: "PLACA - CONDUCTOR"
+            # Unidades existentes
             df_unidades = df_global[["Placa", "Conductor"]].drop_duplicates()
             opciones_unidades = [f"{row['Placa']} - {row['Conductor']}" for _, row in df_unidades.iterrows()]
             
-            sel_unidad = st.selectbox("🚚 Selecciona Vehículo / Ruta a visualizar:", opciones_unidades)
-            
+            sel_unidad = st.selectbox("🚚 Vehículo / Ruta Seleccionada:", opciones_unidades)
             placa_activa = sel_unidad.split(" - ")[0]
             
-            mask_cond = df_global["Placa"] == placa_activa
-            indices_ruta = df_global[mask_cond].index.tolist()
+            indices_ruta = df_global[df_global["Placa"] == placa_activa].index.tolist()
             
             if indices_ruta:
                 conductor_nombre = df_global.loc[indices_ruta[0], "Conductor"]
                 
-                c_head1, c_head2 = st.columns(2)
-                with c_head1:
-                    aux1 = st.text_input("Auxiliar 1", value="", placeholder="Nombre Auxiliar 1")
-                with c_head2:
-                    aux2 = st.text_input("Auxiliar 2", value="", placeholder="Nombre Auxiliar 2")
-
                 total_p = len(indices_ruta)
                 atendidos = (df_global.loc[indices_ruta, "Estado"].isin(["EN", "CE"])).sum()
-                progreso = atendidos / total_p if total_p > 0 else 0.0
+                porcentaje = int((atendidos / total_p) * 100) if total_p > 0 else 0
 
                 st.markdown(f"""
                 <div class="for23-header">
-                    <div class="for23-sub">FOR-23 · {fecha_hoy} · {placa_activa}</div>
-                    <div class="for23-driver">{conductor_nombre}</div>
-                    <div style="font-size: 13px; font-weight: bold; margin-top: 8px; margin-bottom: 6px;">
-                        {atendidos} de {total_p} atendidos
+                    <div style="font-size:11px; color:#83b2b8; font-weight:bold;">FOR-23 · {fecha_hoy} · {placa_activa}</div>
+                    <div style="font-size:18px; font-weight:bold; margin:4px 0;">{conductor_nombre}</div>
+                    <div style="font-size:14px; font-weight:bold; margin-top:5px;">
+                        Avance: {atendidos} de {total_p} entregados ({porcentaje}%)
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                st.progress(progreso)
-                st.divider()
+                st.progress(atendidos / total_p if total_p > 0 else 0.0)
 
-                if not st.session_state.ruta_iniciada:
-                    if st.button("▶️ INICIAR RUTA", type="primary", use_container_width=True):
-                        st.session_state.ruta_iniciada = True
-                        st.success("¡Ruta Iniciada! Puedes gestionar cada entrega.")
-                        st.rerun()
-                else:
-                    st.info("🟢 Ruta en curso. Puedes ordenar pedidos, marcar tiempos (llegada/entrega) y adjuntar fotos.")
-
-                st.markdown("---")
-                
-                # --- LISTADO DE PEDIDOS DEL VEHÍCULO ---
+                # --- TARJETAS MÓVILES POR PEDIDO ---
                 for pos, real_idx in enumerate(indices_ruta):
                     row = df_global.loc[real_idx]
                     num_item = pos + 1
                     
-                    st.markdown(f"#### **#{num_item} · {row['Cliente']}**")
-                    st.caption(f"📍 {row['Distrito']} · 📄 {row['Guia']} · 📦 {row['Bultos']} bultos")
+                    cliente = str(row['Cliente'])
+                    distrito = str(row['Distrito'])
+                    guia = str(row['Guia'])
+                    bultos = str(row['Bultos'])
+                    ubi_url = str(row['Ubicacion'])
                     
-                    if "http" in str(row['Ubicacion']).lower():
-                        st.markdown(f"🗺️ [Abrir en GPS / Maps]({row['Ubicacion']})")
+                    st.markdown(f"""
+                    <div class="card-pedido">
+                        <div class="card-title">#{num_item} · {cliente}</div>
+                        <div class="card-info">📍 <b>Distrito:</b> {distrito}</div>
+                        <div class="card-info">📄 <b>Guía:</b> {guia} | 📦 <b>Bultos:</b> {bultos}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Horas de Llegada y Entrega
+                    if "http" in ubi_url.lower():
+                        st.markdown(f"🗺️ [**Abrir en GPS / Maps**]({ubi_url})")
+
+                    # REGISTRO DE HORAS TÁCTILES
                     c_h1, c_h2 = st.columns(2)
                     with c_h1:
-                        h_llegada_val = str(row["Hora_Llegada"])
-                        if st.button(f"⏱️ Registrar Llegada (#{num_item})", key=f"btn_h1_{real_idx}"):
-                            h_llegada_val = datetime.now().strftime("%H:%M")
-                            df_global.at[real_idx, "Hora_Llegada"] = h_llegada_val
+                        hl_val = str(row["Hora_Llegada"])
+                        if st.button(f"⏱️ LLEGADA", key=f"btn_hl_{real_idx}"):
+                            hl_val = datetime.now().strftime("%H:%M")
+                            df_global.at[real_idx, "Hora_Llegada"] = hl_val
                             guardar_ruta_disco(df_global)
                             st.rerun()
-                            
-                        txt_hl = st.text_input("Hora Llegada", value=h_llegada_val, key=f"txt_hl_{real_idx}", placeholder="HH:MM")
-                        if txt_hl != h_llegada_val:
-                            df_global.at[real_idx, "Hora_Llegada"] = txt_hl
+                        
+                        input_hl = st.text_input("Hora Llegada", value=hl_val, key=f"txt_hl_{real_idx}", label_visibility="collapsed", placeholder="Llegada HH:MM")
+                        if input_hl != hl_val:
+                            df_global.at[real_idx, "Hora_Llegada"] = input_hl
                             guardar_ruta_disco(df_global)
 
                     with c_h2:
-                        h_entrega_val = str(row["Hora_Entrega"])
-                        if st.button(f"✅ Registrar Entrega (#{num_item})", key=f"btn_h2_{real_idx}"):
-                            h_entrega_val = datetime.now().strftime("%H:%M")
-                            df_global.at[real_idx, "Hora_Entrega"] = h_entrega_val
+                        he_val = str(row["Hora_Entrega"])
+                        if st.button(f"✅ ENTREGA", key=f"btn_he_{real_idx}"):
+                            he_val = datetime.now().strftime("%H:%M")
+                            df_global.at[real_idx, "Hora_Entrega"] = he_val
                             df_global.at[real_idx, "Estado"] = "EN"
                             guardar_ruta_disco(df_global)
                             st.rerun()
                             
-                        txt_he = st.text_input("Hora Entrega", value=h_entrega_val, key=f"txt_he_{real_idx}", placeholder="HH:MM")
-                        if txt_he != h_entrega_val:
-                            df_global.at[real_idx, "Hora_Entrega"] = txt_he
+                        input_he = st.text_input("Hora Entrega", value=he_val, key=f"txt_he_{real_idx}", label_visibility="collapsed", placeholder="Entrega HH:MM")
+                        if input_he != he_val:
+                            df_global.at[real_idx, "Hora_Entrega"] = input_he
                             guardar_ruta_disco(df_global)
 
-                    c_est, c_ord1, c_ord2 = st.columns([2, 1, 1])
-                    
+                    # ESTADO Y ORDEN DE SECUENCIA
+                    c_est, c_up, c_dn = st.columns([2, 1, 1])
                     with c_est:
                         opciones = ["ER (En Ruta)", "EN (Entregado)", "FH (Fuera de Hora)", "CE (Cerrado)"]
                         map_idx = {"ER": 0, "EN": 1, "FH": 2, "CE": 3}
-                        curr_idx = map_idx.get(str(row['Estado']), 0)
+                        curr_st_idx = map_idx.get(str(row['Estado']), 0)
                         
-                        nuevo_estado = st.selectbox(
-                            "Estado",
-                            opciones,
-                            index=curr_idx,
-                            key=f"est_{real_idx}"
-                        )
-                        cod_est = nuevo_estado.split(" ")[0]
-                        if cod_est != str(row['Estado']):
-                            df_global.at[real_idx, "Estado"] = cod_est
+                        st_sel = st.selectbox("Estado", opciones, index=curr_st_idx, key=f"st_{real_idx}")
+                        cod_st = st_sel.split(" ")[0]
+                        if cod_st != str(row['Estado']):
+                            df_global.at[real_idx, "Estado"] = cod_st
                             guardar_ruta_disco(df_global)
                             st.rerun()
                             
-                    with c_ord1:
+                    with c_up:
                         if pos > 0:
                             if st.button("▲ Subir", key=f"up_{real_idx}"):
-                                prev_real_idx = indices_ruta[pos - 1]
-                                df_global.iloc[real_idx], df_global.iloc[prev_real_idx] = df_global.iloc[prev_real_idx].copy(), df_global.iloc[real_idx].copy()
+                                prev_idx = indices_ruta[pos - 1]
+                                df_global.iloc[real_idx], df_global.iloc[prev_idx] = df_global.iloc[prev_idx].copy(), df_global.iloc[real_idx].copy()
                                 guardar_ruta_disco(df_global)
                                 st.rerun()
-                                
-                    with c_ord2:
+                    with c_dn:
                         if pos < len(indices_ruta) - 1:
                             if st.button("▼ Bajar", key=f"dn_{real_idx}"):
-                                next_real_idx = indices_ruta[pos + 1]
-                                df_global.iloc[real_idx], df_global.iloc[next_real_idx] = df_global.iloc[next_real_idx].copy(), df_global.iloc[real_idx].copy()
+                                next_idx = indices_ruta[pos + 1]
+                                df_global.iloc[real_idx], df_global.iloc[next_idx] = df_global.iloc[next_idx].copy(), df_global.iloc[real_idx].copy()
                                 guardar_ruta_disco(df_global)
                                 st.rerun()
-                    
-                    # Foto evidencia
-                    foto_subida = st.file_uploader(
-                        f"📷 Foto Evidencia Guía #{num_item}", 
-                        type=["png", "jpg", "jpeg"], 
-                        key=f"foto_{real_idx}"
-                    )
-                    if foto_subida is not None:
-                        df_global.at[real_idx, "Foto_Estado"] = "Foto Registrada"
+
+                    # OBSERVACIONES Y FOTO
+                    obs_val = str(row["Observaciones"]) if pd.notna(row["Observaciones"]) else ""
+                    txt_obs = st.text_input("Observación", value=obs_val, key=f"obs_{real_idx}", placeholder="Escribir observación...")
+                    if txt_obs != obs_val:
+                        df_global.at[real_idx, "Observaciones"] = txt_obs
                         guardar_ruta_disco(df_global)
-                    
-                    # Observación
-                    obs_actual = str(row["Observaciones"]) if pd.notna(row["Observaciones"]) else ""
-                    obs = st.text_input("Observación", value=obs_actual, key=f"obs_{real_idx}", placeholder="Comentario opcional...")
-                    if obs != obs_actual:
-                        df_global.at[real_idx, "Observaciones"] = obs
+
+                    foto_file = st.file_uploader(f"📷 Adjuntar Foto (#{num_item})", type=["png", "jpg", "jpeg"], key=f"foto_{real_idx}")
+                    if foto_file is not None:
+                        df_global.at[real_idx, "Foto_Estado"] = "Foto Carga Ok"
                         guardar_ruta_disco(df_global)
 
                     st.divider()
 
-                # Reporte Excel por vehículo
-                if st.button("📄 Finalizar Ruta y Descargar Reporte Excel", use_container_width=True):
-                    archivo_out = f"Reporte_FOR23_{placa_activa}_{fecha_hoy}.xlsx"
-                    df_export = df_global[df_global["Placa"] == placa_activa].copy()
-                    df_export.to_excel(archivo_out, index=False)
-                    with open(archivo_out, "rb") as f:
-                        st.download_button("⬇️ Descargar Reporte Consolidado", f, file_name=archivo_out)
-
             else:
-                st.warning(f"⚠️ No hay pedidos asignados para la placa {placa_activa}.")
+                st.warning("⚠️ No hay pedidos asignados a esta unidad.")
         else:
-            st.warning("⚠️ Todavía no hay una ruta cargada en el sistema. El administrador debe cargar el Excel del día.")
+            st.warning("⚠️ No hay una ruta activa en el sistema. El administrador debe cargar el Excel.")
+
+    # ==========================================
+    # 3. DASHBOARD / ESTADO DE LA RUTA
+    # ==========================================
+    elif menu == "3. Dashboard / Avance de Ruta":
+        st.title("📊 Resumen y Porcentaje de Ruta")
+        
+        df_global = cargar_ruta_disco()
+        if df_global is not None and not df_global.empty:
+            df_unidades = df_global[["Placa", "Conductor"]].drop_duplicates()
+            opciones_unidades = [f"{row['Placa']} - {row['Conductor']}" for _, row in df_unidades.iterrows()]
+            
+            sel_unidad_dash = st.selectbox("Seleccionar Vehículo a Monitorear:", opciones_unidades)
+            placa_dash = sel_unidad_dash.split(" - ")[0]
+            
+            df_dash = df_global[df_global["Placa"] == placa_dash]
+            
+            total_pedidos = len(df_dash)
+            cant_en = (df_dash["Estado"] == "EN").sum()
+            cant_er = (df_dash["Estado"] == "ER").sum()
+            cant_fh = (df_dash["Estado"] == "FH").sum()
+            cant_ce = (df_dash["Estado"] == "CE").sum()
+            
+            porcentaje_avance = int((cant_en / total_pedidos) * 100) if total_pedidos > 0 else 0
+            
+            st.markdown(f"### Avance General: **{porcentaje_avance}% Completado**")
+            st.progress(porcentaje_avance / 100)
+            
+            st.divider()
+            
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.markdown(f"""<div class="metric-box"><div style="color:#00875a;" class="metric-value">{cant_en}</div><div style="font-size:12px;">ENTREGADOS (EN)</div></div>""", unsafe_allow_html=True)
+            with m2:
+                st.markdown(f"""<div class="metric-box"><div style="color:#e08b00;" class="metric-value">{cant_er}</div><div style="font-size:12px;">EN RUTA (ER)</div></div>""", unsafe_allow_html=True)
+            with m3:
+                st.markdown(f"""<div class="metric-box"><div style="color:#d9381e;" class="metric-value">{cant_fh}</div><div style="font-size:12px;">FUERA HORA (FH)</div></div>""", unsafe_allow_html=True)
+            with m4:
+                st.markdown(f"""<div class="metric-box"><div style="color:#5a6268;" class="metric-value">{cant_ce}</div><div style="font-size:12px;">CERRADOS (CE)</div></div>""", unsafe_allow_html=True)
+
+            st.divider()
+            st.markdown("### 📋 Detalle de Tiempos y Estados:")
+            st.dataframe(df_dash[["Cliente", "Distrito", "Guia", "Estado", "Hora_Llegada", "Hora_Entrega", "Observaciones"]], use_container_width=True)
+            
+        else:
+            st.warning("⚠️ No hay datos cargados actualmente.")
