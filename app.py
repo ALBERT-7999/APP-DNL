@@ -7,10 +7,9 @@ st.set_page_config(page_title="MEDIPORT - Reparto", page_icon="🚚", layout="ce
 
 RUTA_STORAGE = "data_ruta_activa.csv"
 
-# --- ESTILOS VISUALES MÓVILES MEJORADOS (APP FRIENDLY) ---
+# --- ESTILOS VISUALES MÓVILES ---
 st.markdown("""
 <style>
-    /* Estilos generales móviles */
     .stButton>button {
         border-radius: 10px !important;
         font-weight: bold !important;
@@ -124,7 +123,6 @@ else:
         
     st.sidebar.divider()
     
-    # Opciones de Menú
     if user_info["rol"] == "admin":
         menu = st.sidebar.radio("📌 Menú de Navegación", [
             "1. Cargar Data de Reparto", 
@@ -203,7 +201,6 @@ else:
         if df_global is not None and not df_global.empty:
             fecha_hoy = datetime.now().strftime("%Y-%m-%d")
             
-            # Unidades existentes
             df_unidades = df_global[["Placa", "Conductor"]].drop_duplicates()
             opciones_unidades = [f"{row['Placa']} - {row['Conductor']}" for _, row in df_unidades.iterrows()]
             
@@ -252,36 +249,42 @@ else:
                     if "http" in ubi_url.lower():
                         st.markdown(f"🗺️ [**Abrir en GPS / Maps**]({ubi_url})")
 
-                    # REGISTRO DE HORAS TÁCTILES
+                    # REGISTRO DIRECTO DE HORAS (SINCRO EN SESIÓN)
                     c_h1, c_h2 = st.columns(2)
                     with c_h1:
+                        key_hl = f"txt_hl_{real_idx}"
                         hl_val = str(row["Hora_Llegada"])
+                        
                         if st.button(f"⏱️ LLEGADA", key=f"btn_hl_{real_idx}"):
-                            hl_val = datetime.now().strftime("%H:%M")
-                            df_global.at[real_idx, "Hora_Llegada"] = hl_val
+                            hora_actual = datetime.now().strftime("%H:%M")
+                            df_global.at[real_idx, "Hora_Llegada"] = hora_actual
+                            st.session_state[key_hl] = hora_actual
                             guardar_ruta_disco(df_global)
                             st.rerun()
                         
-                        input_hl = st.text_input("Hora Llegada", value=hl_val, key=f"txt_hl_{real_idx}", label_visibility="collapsed", placeholder="Llegada HH:MM")
+                        input_hl = st.text_input("Hora Llegada", value=hl_val, key=key_hl, label_visibility="collapsed", placeholder="Llegada HH:MM")
                         if input_hl != hl_val:
                             df_global.at[real_idx, "Hora_Llegada"] = input_hl
                             guardar_ruta_disco(df_global)
 
                     with c_h2:
+                        key_he = f"txt_he_{real_idx}"
                         he_val = str(row["Hora_Entrega"])
+                        
                         if st.button(f"✅ ENTREGA", key=f"btn_he_{real_idx}"):
-                            he_val = datetime.now().strftime("%H:%M")
-                            df_global.at[real_idx, "Hora_Entrega"] = he_val
+                            hora_actual = datetime.now().strftime("%H:%M")
+                            df_global.at[real_idx, "Hora_Entrega"] = hora_actual
                             df_global.at[real_idx, "Estado"] = "EN"
+                            st.session_state[key_he] = hora_actual
                             guardar_ruta_disco(df_global)
                             st.rerun()
                             
-                        input_he = st.text_input("Hora Entrega", value=he_val, key=f"txt_he_{real_idx}", label_visibility="collapsed", placeholder="Entrega HH:MM")
+                        input_he = st.text_input("Hora Entrega", value=he_val, key=key_he, label_visibility="collapsed", placeholder="Entrega HH:MM")
                         if input_he != he_val:
                             df_global.at[real_idx, "Hora_Entrega"] = input_he
                             guardar_ruta_disco(df_global)
 
-                    # ESTADO Y ORDEN DE SECUENCIA
+                    # ESTADO Y SECUENCIA
                     c_est, c_up, c_dn = st.columns([2, 1, 1])
                     with c_est:
                         opciones = ["ER (En Ruta)", "EN (Entregado)", "FH (Fuera de Hora)", "CE (Cerrado)"]
