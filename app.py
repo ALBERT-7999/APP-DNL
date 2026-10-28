@@ -182,4 +182,28 @@ elif menu == "2. Vista de Ruta (Conductor)":
             
             # --- CARGA DE FOTO DE EVIDENCIA DE ENTREGA ---
             foto_subida = st.file_uploader(
-                f"📷 Tomar/
+                f"📷 Tomar/Subir Foto de Guía Sellada (#{num_item})", 
+                type=["png", "jpg", "jpeg"], 
+                key=f"foto_{idx}"
+            )
+            
+            if foto_subida is not None:
+                st.session_state.df_ruta.at[idx, "Foto_Estado"] = "Foto Registrada"
+                st.success(f"¡Foto de evidencia cargada para #{num_item}!")
+            
+            # --- OBSERVACIÓN ---
+            obs = st.text_input("Observación", value=row["Observaciones"], key=f"obs_{idx}", placeholder="Comentario opcional...")
+            if obs != row["Observaciones"]:
+                st.session_state.df_ruta.at[idx, "Observaciones"] = obs
+
+            st.divider()
+
+        # Botón de Cierre y Exportación de Reporte Final
+        if st.button("📄 Finalizar Ruta y Descargar Reporte Excel", use_container_width=True):
+            archivo_out = f"Reporte_FOR23_{placa}_{fecha_hoy}.xlsx"
+            st.session_state.df_ruta.to_excel(archivo_out, index=False)
+            with open(archivo_out, "rb") as f:
+                st.download_button("⬇️ Descargar Reporte Consolidado", f, file_name=archivo_out)
+
+    else:
+        st.warning("⚠️ Primero sube el archivo de reparto en la pestaña '1. Cargar Data de Reparto'.")
