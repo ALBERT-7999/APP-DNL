@@ -2,100 +2,125 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-st.set_page_config(page_title="App de Reparto - MediPort", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Control de Reparto - Roxfarma", page_icon="🚚", layout="wide")
 
-# Estilos CSS
-st.markdown("""
-<style>
-    .for23-header { background-color: #004d5a; color: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
-    .for23-sub { font-size: 11px; color: #83b2b8; font-weight: bold; }
-    .for23-driver { font-size: 20px; font-weight: 800; margin: 5px 0; }
-    .badge-en { background-color: #00875a; color: white; padding: 4px 10px; border-radius: 6px; font-weight: bold; float: right; }
-    .badge-er { background-color: #ff9900; color: white; padding: 4px 10px; border-radius: 6px; font-weight: bold; float: right; }
-</style>
-""", unsafe_allow_html=True)
+st.markdown("<h1>🚚 Sistema de Control de Reparto y Ruteo</h1>", unsafe_allow_html=True)
+st.markdown("<span>Gestión simplificada: Carga de Data, Ruteo y Control de Entregas</span>", unsafe_allow_html=True)
+st.divider()
 
-# Memoria global
-if "df_conductores" not in st.session_state:
-    st.session_state.df_conductores = pd.DataFrame(columns=["Nombres", "Apellidos", "DNI"])
-if "df_flota" not in st.session_state:
-    st.session_state.df_flota = pd.DataFrame(columns=["Placa", "Capacidad Cajas", "Capacidad (m3)"])
-if "df_final" not in st.session_state:
-    st.session_state.df_final = None
+# --- MEMORIA DE LA SESIÓN ---
+if "df_operaciones" not in st.session_state:
+    st.session_state.df_operaciones = None
 
-st.sidebar.title("⚙️ Menú Principal")
-menu = st.sidebar.selectbox("Navegación", [
-    "1. Panel de Control (Personal y Flota)", 
-    "2. Ruteo Ágil por Zonas (Norte/Sur/Este)", 
-    "3. Control de Reparto en Ruta (Vista FOR-23)"
+# --- MENÚ DE NAVEGACIÓN ---
+menu = st.sidebar.radio("📌 Menú de Operaciones", [
+    "1. Carga de Data", 
+    "2. Ruteo y Asignación", 
+    "3. Control de Reparto (Vista Conductor)"
 ])
 
-# Módulo 1: Control Flota y Conductores
-if menu == "1. Panel de Control (Personal y Flota)":
-    st.subheader("👥 Registro de Conductores y 🚚 Flota de Camiones")
-    col_c, col_f = st.columns(2)
-    with col_c:
-        st.markdown("### Registrar Conductor")
-        with st.form("form_cond"):
-            nom, ape, dni = st.text_input("Nombres"), st.text_input("Apellidos"), st.text_input("DNI", max_chars=8)
-            if st.form_submit_button("Guardar Conductor") and nom and ape and dni:
-                st.session_state.df_conductores = pd.concat([st.session_state.df_conductores, pd.DataFrame([[nom, ape, dni]], columns=["Nombres", "Apellidos", "DNI"])], ignore_index=True)
-                st.success(f"Conductor {nom} registrado.")
-        st.dataframe(st.session_state.df_conductores, use_container_width=True)
-    with col_f:
-        st.markdown("### Registrar Camión")
-        with st.form("form_veh"):
-            placa, cajas, m3 = st.text_input("Placa"), st.number_input("Cajas", min_value=1, value=50), st.number_input("m³", min_value=0.1, value=10.0)
-            if st.form_submit_button("Guardar Vehículo") and placa:
-                st.session_state.df_flota = pd.concat([st.session_state.df_flota, pd.DataFrame([[placa.upper(), cajas, m3]], columns=["Placa", "Capacidad Cajas", "Capacidad (m3)"])], ignore_index=True)
-                st.success(f"Vehículo {placa.upper()} registrado.")
-        st.dataframe(st.session_state.df_flota, use_container_width=True)
 
-# Módulo 2: Ruteo por Zonas
-elif menu == "2. Ruteo Ágil por Zonas (Norte/Sur/Este)":
-    st.subheader("📁 Carga de Documentación y Ruteo por Zonas")
-    file_final = st.file_uploader("Sube el Excel Final (Guía Cliente + TDA)", type=["xlsx", "xls"], key="fin")
-    if file_final is not None:
-        st.session_state.df_final = pd.read_excel(file_final)
-        if "ESTADO_REPARTO" not in st.session_state.df_final.columns:
-            st.session_state.df_final["ESTADO_REPARTO"] = "ER"
-        st.success("¡Archivo Final cargado con éxito!")
-
-    if st.session_state.df_final is not None:
-        df = st.session_state.df_final
-        col_dist = st.selectbox("Columna de DISTRITO", df.columns)
-        col_asg1, col_asg2 = st.columns(2)
-        with col_asg1:
-            st.session_state["placa_activa"] = st.selectbox("Asignar Camión", st.session_state.df_flota["Placa"].tolist() if not st.session_state.df_flota.empty else ["AUG-728"])
-        with col_asg2:
-            st.session_state["conductor_activo"] = st.selectbox("Asignar Conductor", (st.session_state.df_conductores["Nombres"] + " " + st.session_state.df_conductores["Apellidos"]).tolist() if not st.session_state.df_conductores.empty else ["KAIQUE CHUQUIPIONDO CARDENAS"])
-        if st.button("Confirmar Ruta"):
-            st.success("¡Ruta configurada con éxito!")
-
-# Módulo 3: Formato FOR-23
-elif menu == "3. Control de Reparto en Ruta (Vista FOR-23)":
-    if st.session_state.df_final is not None:
-        df = st.session_state.df_final
-        conductor_nom = st.session_state.get("conductor_activo", "KAIQUE CHUQUIPIONDO CARDENAS")
-        placa_cod = st.session_state.get("placa_activa", "AUG-728")
-        fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-        
-        st.markdown(f"""
-        <div class="for23-header">
-            <div class="for23-sub">FOR-23 · {fecha_hoy} · {placa_cod}</div>
-            <div class="for23-driver">{conductor_nom.upper()}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        ca1, ca2 = st.columns(2)
-        aux1 = ca1.text_input("Auxiliar 1", value="FERNANDO MARTÍNEZ")
-        aux2 = ca2.text_input("Auxiliar 2", value="RONALD CAJAVILCA")
-
-        st.dataframe(df.head(10), use_container_width=True)
-
-        if st.button("📄 Generar e Imprimir Formato FOR-23 Oficial"):
-            archivo_out = f"Reporte_FOR23_{fecha_hoy}.xlsx"
-            df.to_excel(archivo_out, index=False)
-            st.success("¡Documento FOR-23 listo para impresión y envío!")
+# ==========================================
+# MÓDULO 1: CARGA DE DATA
+# ==========================================
+if menu == "1. Carga de Data":
+    st.subheader("📁 1. Carga del Archivo Consolidado de Operaciones")
+    st.info("Sube el archivo Excel con los datos completos de los despachos.")
+    
+    file_upload = st.file_uploader("Selecciona el archivo Excel (.xlsx / .xls)", type=["xlsx", "xls"])
+    
+    if file_upload is not None:
+        try:
+            df = pd.read_excel(file_upload)
+            
+            # Inicializar columnas por defecto si no existen
+            if "ESTADO_ENTREGA" not in df.columns:
+                df["ESTADO_ENTREGA"] = "ER"  # En Ruta por defecto
+            if "HORA_LLEGADA" not in df.columns:
+                df["HORA_LLEGADA"] = ""
+                
+            st.session_state.df_operaciones = df
+            st.success("¡Archivo cargado correctamente en el sistema!")
+            
+            st.markdown("### 📊 Mapeo de Campos Obligatorios")
+            st.write("Selecciona las columnas correspondientes de tu Excel para que el sistema las organice:")
+            
+            cols = df.columns.tolist()
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.session_state["c_cliente"] = st.selectbox("Nombre del Cliente", cols, key="m_cli")
+                st.session_state["c_direccion"] = st.selectbox("Dirección del Cliente", cols, key="m_dir")
+                st.session_state["c_ubicacion"] = st.selectbox("Ubicación / Waze / Maps", cols, key="m_ubi")
+            with c2:
+                st.session_state["c_cajas"] = st.selectbox("Cantidad de Cajas / Bultos", cols, key="m_caj")
+                st.session_state["c_pedido"] = st.selectbox("Número de Pedido", cols, key="m_ped")
+            with c3:
+                st.session_state["c_guia_cli"] = st.selectbox("Guía de Remisión Cliente", cols, key="m_gcli")
+                st.session_state["c_guia_tda"] = st.selectbox("Guía Transportista (TDA)", cols, key="m_gtda")
+                
+            st.divider()
+            st.markdown("### Vista Previa de la Data Cargada")
+            st.dataframe(df.head(5), use_container_width=True)
+            
+        except Exception as e:
+            st.error(f"Error al leer el archivo Excel: {e}")
     else:
-        st.warning("⚠️ Primero carga el archivo de operaciones en el Módulo 2.")
+        if st.session_state.df_operaciones is not None:
+            st.success("Actualmente hay un archivo cargado en memoria.")
+            st.dataframe(st.session_state.df_operaciones.head(3), use_container_width=True)
+
+
+# ==========================================
+# MÓDULO 2: RUTEO Y ASIGNACIÓN
+# ==========================================
+elif menu == "2. Ruteo y Asignación":
+    st.subheader("🗺️ 2. Ruteo y Organiación de Entregas")
+    
+    if st.session_state.df_operaciones is not None:
+        df = st.session_state.df_operaciones
+        
+        # Obtener nombres de columnas mapeadas
+        col_cli = st.session_state.get("c_cliente", df.columns[0])
+        col_dir = st.session_state.get("c_direccion", df.columns[0])
+        col_caj = st.session_state.get("c_cajas", df.columns[0])
+        col_gtda = st.session_state.get("c_guia_tda", df.columns[0])
+        col_ubi = st.session_state.get("c_ubicacion", df.columns[0])
+        
+        st.markdown("### 🚛 Configuración de la Ruta")
+        c_asg1, c_asg2, c_asg3 = st.columns(3)
+        with c_asg1:
+            conductor = st.text_input("Nombre del Conductor", value="Kaique Chuquipiondo")
+        with c_asg2:
+            placa = st.text_input("Placa del Vehículo", value="AUG-728")
+        with c_asg3:
+            total_cajas = pd.to_numeric(df[col_caj], errors="coerce").sum()
+            st.metric("Total Cajas en Carga", f"{int(total_cajas) if not pd.isna(total_cajas) else 0} Cajas")
+
+        st.divider()
+        st.markdown("### 📋 Listado Consolidado para Despacho")
+        
+        df_ruteo = pd.DataFrame({
+            "Guía TDA": df[col_gtda],
+            "Cliente": df[col_cli],
+            "Dirección": df[col_dir],
+            "Cajas": df[col_caj],
+            "Ubicación": df[col_ubi]
+        })
+        
+        st.dataframe(df_ruteo, use_container_width=True)
+        
+    else:
+        st.warning("⚠️ Primero debes subir el archivo Excel en el módulo '1. Carga de Data'.")
+
+
+# ==========================================
+# MÓDULO 3: CONTROL DE REPARTO (VISTA CONDUCTOR)
+# ==========================================
+elif menu == "3. Control de Reparto (Vista Conductor)":
+    st.subheader("📱 3. Control de Entregas en Ruta")
+    
+    if st.session_state.df_operaciones is not None:
+        df = st.session_state.df_operaciones
+        
+        # Mapeo de columnas
+        col_cli = st.session_
