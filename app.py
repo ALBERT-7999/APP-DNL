@@ -7,7 +7,7 @@ st.set_page_config(page_title="MEDIPORT - Reparto", page_icon="🚚", layout="ce
 
 RUTA_STORAGE = "data_ruta_activa.csv"
 
-# --- ESTILOS VISUALES MÓVILES ---
+# --- ESTILOS VISUALES MÓVILES CON DINAMISMO DE COLORES ---
 st.markdown("""
 <style>
     .stButton>button {
@@ -16,24 +16,55 @@ st.markdown("""
         height: 3em !important;
         width: 100% !important;
     }
+    
+    /* Clases de Tarjetas Dinámicas por Estado */
     .card-pedido {
-        background-color: #ffffff;
-        border: 1px solid #e0e0e0;
-        border-left: 6px solid #004d5a;
         border-radius: 12px;
         padding: 15px;
-        margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.06);
     }
+    
+    /* EN RUTA (Amarillo / Naranja) */
+    .card-er {
+        background-color: #fff9e6;
+        border: 1px solid #ffe599;
+        border-left: 8px solid #f1c40f;
+    }
+    .card-er .card-title { color: #b78103; }
+    
+    /* ENTREGADO (Verde) */
+    .card-en {
+        background-color: #eef9f1;
+        border: 1px solid #b7e4c7;
+        border-left: 8px solid #27ae60;
+    }
+    .card-en .card-title { color: #1e7e34; }
+    
+    /* FUERA DE HORA (Rojo) */
+    .card-fh {
+        background-color: #fdf2f2;
+        border: 1px solid #f5c6cb;
+        border-left: 8px solid #e74c3c;
+    }
+    .card-fh .card-title { color: #bd2130; }
+    
+    /* CERRADO (Gris) */
+    .card-ce {
+        background-color: #f2f2f2;
+        border: 1px solid #d6d6d6;
+        border-left: 8px solid #7f8c8d;
+    }
+    .card-ce .card-title { color: #495057; }
+
     .card-title {
-        color: #004d5a;
         font-size: 18px;
         font-weight: bold;
         margin-bottom: 5px;
     }
     .card-info {
         font-size: 14px;
-        color: #444;
+        color: #333333;
         margin-bottom: 3px;
     }
     .metric-box {
@@ -220,160 +251,4 @@ else:
                 <div class="for23-header">
                     <div style="font-size:11px; color:#83b2b8; font-weight:bold;">FOR-23 · {fecha_hoy} · {placa_activa}</div>
                     <div style="font-size:18px; font-weight:bold; margin:4px 0;">{conductor_nombre}</div>
-                    <div style="font-size:14px; font-weight:bold; margin-top:5px;">
-                        Avance: {atendidos} de {total_p} entregados ({porcentaje}%)
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                st.progress(atendidos / total_p if total_p > 0 else 0.0)
-
-                # --- TARJETAS MÓVILES POR PEDIDO ---
-                for pos, real_idx in enumerate(indices_ruta):
-                    row = df_global.loc[real_idx]
-                    num_item = pos + 1
-                    
-                    cliente = str(row['Cliente'])
-                    distrito = str(row['Distrito'])
-                    guia = str(row['Guia'])
-                    bultos = str(row['Bultos'])
-                    ubi_url = str(row['Ubicacion'])
-                    
-                    st.markdown(f"""
-                    <div class="card-pedido">
-                        <div class="card-title">#{num_item} · {cliente}</div>
-                        <div class="card-info">📍 <b>Distrito:</b> {distrito}</div>
-                        <div class="card-info">📄 <b>Guía:</b> {guia} | 📦 <b>Bultos:</b> {bultos}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    if "http" in ubi_url.lower():
-                        st.markdown(f"🗺️ [**Abrir en GPS / Maps**]({ubi_url})")
-
-                    # REGISTRO DIRECTO DE HORAS (SINCRO EN SESIÓN)
-                    c_h1, c_h2 = st.columns(2)
-                    with c_h1:
-                        key_hl = f"txt_hl_{real_idx}"
-                        hl_val = str(row["Hora_Llegada"])
-                        
-                        if st.button(f"⏱️ LLEGADA", key=f"btn_hl_{real_idx}"):
-                            hora_actual = datetime.now().strftime("%H:%M")
-                            df_global.at[real_idx, "Hora_Llegada"] = hora_actual
-                            st.session_state[key_hl] = hora_actual
-                            guardar_ruta_disco(df_global)
-                            st.rerun()
-                        
-                        input_hl = st.text_input("Hora Llegada", value=hl_val, key=key_hl, label_visibility="collapsed", placeholder="Llegada HH:MM")
-                        if input_hl != hl_val:
-                            df_global.at[real_idx, "Hora_Llegada"] = input_hl
-                            guardar_ruta_disco(df_global)
-
-                    with c_h2:
-                        key_he = f"txt_he_{real_idx}"
-                        he_val = str(row["Hora_Entrega"])
-                        
-                        if st.button(f"✅ ENTREGA", key=f"btn_he_{real_idx}"):
-                            hora_actual = datetime.now().strftime("%H:%M")
-                            df_global.at[real_idx, "Hora_Entrega"] = hora_actual
-                            df_global.at[real_idx, "Estado"] = "EN"
-                            st.session_state[key_he] = hora_actual
-                            guardar_ruta_disco(df_global)
-                            st.rerun()
-                            
-                        input_he = st.text_input("Hora Entrega", value=he_val, key=key_he, label_visibility="collapsed", placeholder="Entrega HH:MM")
-                        if input_he != he_val:
-                            df_global.at[real_idx, "Hora_Entrega"] = input_he
-                            guardar_ruta_disco(df_global)
-
-                    # ESTADO Y SECUENCIA
-                    c_est, c_up, c_dn = st.columns([2, 1, 1])
-                    with c_est:
-                        opciones = ["ER (En Ruta)", "EN (Entregado)", "FH (Fuera de Hora)", "CE (Cerrado)"]
-                        map_idx = {"ER": 0, "EN": 1, "FH": 2, "CE": 3}
-                        curr_st_idx = map_idx.get(str(row['Estado']), 0)
-                        
-                        st_sel = st.selectbox("Estado", opciones, index=curr_st_idx, key=f"st_{real_idx}")
-                        cod_st = st_sel.split(" ")[0]
-                        if cod_st != str(row['Estado']):
-                            df_global.at[real_idx, "Estado"] = cod_st
-                            guardar_ruta_disco(df_global)
-                            st.rerun()
-                            
-                    with c_up:
-                        if pos > 0:
-                            if st.button("▲ Subir", key=f"up_{real_idx}"):
-                                prev_idx = indices_ruta[pos - 1]
-                                df_global.iloc[real_idx], df_global.iloc[prev_idx] = df_global.iloc[prev_idx].copy(), df_global.iloc[real_idx].copy()
-                                guardar_ruta_disco(df_global)
-                                st.rerun()
-                    with c_dn:
-                        if pos < len(indices_ruta) - 1:
-                            if st.button("▼ Bajar", key=f"dn_{real_idx}"):
-                                next_idx = indices_ruta[pos + 1]
-                                df_global.iloc[real_idx], df_global.iloc[next_idx] = df_global.iloc[next_idx].copy(), df_global.iloc[real_idx].copy()
-                                guardar_ruta_disco(df_global)
-                                st.rerun()
-
-                    # OBSERVACIONES Y FOTO
-                    obs_val = str(row["Observaciones"]) if pd.notna(row["Observaciones"]) else ""
-                    txt_obs = st.text_input("Observación", value=obs_val, key=f"obs_{real_idx}", placeholder="Escribir observación...")
-                    if txt_obs != obs_val:
-                        df_global.at[real_idx, "Observaciones"] = txt_obs
-                        guardar_ruta_disco(df_global)
-
-                    foto_file = st.file_uploader(f"📷 Adjuntar Foto (#{num_item})", type=["png", "jpg", "jpeg"], key=f"foto_{real_idx}")
-                    if foto_file is not None:
-                        df_global.at[real_idx, "Foto_Estado"] = "Foto Carga Ok"
-                        guardar_ruta_disco(df_global)
-
-                    st.divider()
-
-            else:
-                st.warning("⚠️ No hay pedidos asignados a esta unidad.")
-        else:
-            st.warning("⚠️ No hay una ruta activa en el sistema. El administrador debe cargar el Excel.")
-
-    # ==========================================
-    # 3. DASHBOARD / ESTADO DE LA RUTA
-    # ==========================================
-    elif menu == "3. Dashboard / Avance de Ruta":
-        st.title("📊 Resumen y Porcentaje de Ruta")
-        
-        df_global = cargar_ruta_disco()
-        if df_global is not None and not df_global.empty:
-            df_unidades = df_global[["Placa", "Conductor"]].drop_duplicates()
-            opciones_unidades = [f"{row['Placa']} - {row['Conductor']}" for _, row in df_unidades.iterrows()]
-            
-            sel_unidad_dash = st.selectbox("Seleccionar Vehículo a Monitorear:", opciones_unidades)
-            placa_dash = sel_unidad_dash.split(" - ")[0]
-            
-            df_dash = df_global[df_global["Placa"] == placa_dash]
-            
-            total_pedidos = len(df_dash)
-            cant_en = (df_dash["Estado"] == "EN").sum()
-            cant_er = (df_dash["Estado"] == "ER").sum()
-            cant_fh = (df_dash["Estado"] == "FH").sum()
-            cant_ce = (df_dash["Estado"] == "CE").sum()
-            
-            porcentaje_avance = int((cant_en / total_pedidos) * 100) if total_pedidos > 0 else 0
-            
-            st.markdown(f"### Avance General: **{porcentaje_avance}% Completado**")
-            st.progress(porcentaje_avance / 100)
-            
-            st.divider()
-            
-            m1, m2, m3, m4 = st.columns(4)
-            with m1:
-                st.markdown(f"""<div class="metric-box"><div style="color:#00875a;" class="metric-value">{cant_en}</div><div style="font-size:12px;">ENTREGADOS (EN)</div></div>""", unsafe_allow_html=True)
-            with m2:
-                st.markdown(f"""<div class="metric-box"><div style="color:#e08b00;" class="metric-value">{cant_er}</div><div style="font-size:12px;">EN RUTA (ER)</div></div>""", unsafe_allow_html=True)
-            with m3:
-                st.markdown(f"""<div class="metric-box"><div style="color:#d9381e;" class="metric-value">{cant_fh}</div><div style="font-size:12px;">FUERA HORA (FH)</div></div>""", unsafe_allow_html=True)
-            with m4:
-                st.markdown(f"""<div class="metric-box"><div style="color:#5a6268;" class="metric-value">{cant_ce}</div><div style="font-size:12px;">CERRADOS (CE)</div></div>""", unsafe_allow_html=True)
-
-            st.divider()
-            st.markdown("### 📋 Detalle de Tiempos y Estados:")
-            st.dataframe(df_dash[["Cliente", "Distrito", "Guia", "Estado", "Hora_Llegada", "Hora_Entrega", "Observaciones"]], use_container_width=True)
-            
-        else:
-            st.warning("⚠️ No hay datos cargados actualmente.")
+                    <div style="font-
