@@ -129,7 +129,7 @@ else:
     # ==========================================
     if menu == "1. Cargar Data de Reparto":
         st.title("📁 Carga del Archivo de Reparto")
-        st.info("Sube el Excel consolidado. Se segmentará automáticamente por Conductor y Placa.")
+        st.info("Sube el Excel consolidado. Mapea la columna PLACA correctamente.")
         
         archivo = st.file_uploader("Seleccionar Excel (.xlsx, .xls)", type=["xlsx", "xls"])
         
@@ -137,24 +137,28 @@ else:
             try:
                 df = pd.read_excel(archivo)
                 
-                st.markdown("### 📊 Seleccionar Columnas de la Data")
+                st.markdown("### 📊 Mapeo de Columnas del Excel")
                 cols = df.columns.tolist()
                 
                 c1, c2 = st.columns(2)
                 with c1:
-                    col_cli = st.selectbox("Cliente", cols, index=0)
+                    col_cli = st.selectbox("Nombre del Cliente", cols, index=0)
                     col_dis = st.selectbox("Distrito / Zona", cols, index=min(1, len(cols)-1))
                     col_gui = st.selectbox("N° Guía / Comprobante", cols, index=min(2, len(cols)-1))
                     col_cond = st.selectbox("Conductor Asignado", cols, index=min(3, len(cols)-1))
                 with c2:
                     col_bul = st.selectbox("Bultos / Cajas", cols, index=min(4, len(cols)-1))
                     col_ubi = st.selectbox("Ubicación GPS / Dirección", cols, index=min(5, len(cols)-1))
-                    col_plc = st.selectbox("Placa del Vehículo", cols, index=min(6, len(cols)-1))
+                    col_plc = st.selectbox("Placa del Vehículo (⚠️ NO seleccionar guía aquí)", cols, index=min(6, len(cols)-1))
                     
                 if st.button("🚀 Cargar y Publicar Rutas por Vehículo", type="primary", use_container_width=True):
+                    # Normalización estricta de nombres y espacios
+                    cond_serie = df[col_cond].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.upper()
+                    placa_serie = df[col_plc].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.upper()
+                    
                     df_normal = pd.DataFrame({
-                        "Conductor": df[col_cond].astype(str).str.strip().str.upper(),
-                        "Placa": df[col_plc].astype(str).str.strip().str.upper(),
+                        "Conductor": cond_serie,
+                        "Placa": placa_serie,
                         "Cliente": df[col_cli].astype(str),
                         "Distrito": df[col_dis].astype(str),
                         "Guia": df[col_gui].astype(str),
@@ -169,15 +173,21 @@ else:
                     
                     guardar_ruta_disco(df_normal)
                     st.session_state.ruta_iniciada = False
-                    st.success("¡Data cargada y distribuida por conductor con éxito!")
+                    st.success("¡Data cargada y organizada correctamente!")
+                    st.rerun()
                     
             except Exception as e:
                 st.error(f"Error al procesar el Excel: {e}")
                 
         df_act = cargar_ruta_disco()
-        if df_act is not None:
-            st.success(f"Hay un total de {len(df_act)} pedidos activos distribuidos en {df_act['Placa'].nunique()} unidades.")
-            st.dataframe(df_act[["Conductor", "Placa", "Cliente", "Guia", "Distrito"]].head(10), use_container_width=True)
+        if df_act is not None and not df_act.empty:
+            num_placas = df_act['Placa'].nunique()
+            st.success(f"Hay un total de {len(df_act)} pedidos activos distribuidos en {num_placas} vehículo(s).")
+            
+            # Resumen consolidado por camión
+            st.markdown("#### 📊 Resumen por Vehículo / Conductor:")
+            resumen = df_act.groupby(["Placa", "Conductor"]).size().reset_index(name="Cant. Pedidos")
+            st.dataframe(resumen, use_container_width=True)
 
     # ==========================================
     # 2. VISTA DE RUTA (CONDUCTOR / AUXILIARES)
@@ -185,20 +195,18 @@ else:
     elif menu == "2. Vista de Ruta (Conductor)":
         df_global = cargar_ruta_disco()
         
-        if df_global is not None:
+        if df_global is not None and not df_global.empty:
             fecha_hoy = datetime.now().strftime("%Y-%m-%d")
             
-            # Filtrar por el conductor o placa seleccionada
-            placas_disponibles = df_global["Placa"].unique().tolist()
+            # Formatear lista de unidades para el selector: "PLACA - CONDUCTOR"
+            df_unidades = df_global[["Placa", "Conductor"]].drop_duplicates()
+            opciones_unidades = [f"{row['Placa']} - {row['Conductor']}" for _, row in df_unidades.iterrows()]
             
-            # Si es perfil conductor, filtrar automáticamente por su nombre o permitir seleccionar su placa
-            if user_info["rol"] == "conductor":
-                placa_activa = st.selectbox("🚚 Selecciona tu Placa / Vehículo:", placas_disponibles)
-                mask_cond = df_global["Placa"] == placa_activa
-            else:
-                placa_activa = st.selectbox("🚚 Selecciona Vehículo a Visualizar:", placas_disponibles)
-                mask_cond = df_global["Placa"] == placa_activa
-                
+            sel_unidad = st.selectbox("🚚 Selecciona Vehículo / Ruta a visualizar:", opciones_unidades)
+            
+            placa_activa = sel_unidad.split(" - ")[0]
+            
+            mask_cond = df_global["Placa"] == placa_activa
             indices_ruta = df_global[mask_cond].index.tolist()
             
             if indices_ruta:
@@ -237,7 +245,7 @@ else:
 
                 st.markdown("---")
                 
-                # --- LISTADO DE PEDIDOS DEL CONDUCTOR ---
+                # --- LISTADO DE PEDIDOS DEL VEHÍCULO ---
                 for pos, real_idx in enumerate(indices_ruta):
                     row = df_global.loc[real_idx]
                     num_item = pos + 1
@@ -248,7 +256,7 @@ else:
                     if "http" in str(row['Ubicacion']).lower():
                         st.markdown(f"🗺️ [Abrir en GPS / Maps]({row['Ubicacion']})")
                     
-                    # Carga y gestión de Horas (Llegada / Entrega)
+                    # Horas de Llegada y Entrega
                     c_h1, c_h2 = st.columns(2)
                     with c_h1:
                         h_llegada_val = str(row["Hora_Llegada"])
@@ -312,7 +320,7 @@ else:
                                 guardar_ruta_disco(df_global)
                                 st.rerun()
                     
-                    # Foto de evidencia
+                    # Foto evidencia
                     foto_subida = st.file_uploader(
                         f"📷 Foto Evidencia Guía #{num_item}", 
                         type=["png", "jpg", "jpeg"], 
@@ -331,7 +339,7 @@ else:
 
                     st.divider()
 
-                # Reporte final por vehículo
+                # Reporte Excel por vehículo
                 if st.button("📄 Finalizar Ruta y Descargar Reporte Excel", use_container_width=True):
                     archivo_out = f"Reporte_FOR23_{placa_activa}_{fecha_hoy}.xlsx"
                     df_export = df_global[df_global["Placa"] == placa_activa].copy()
