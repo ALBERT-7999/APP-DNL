@@ -123,4 +123,71 @@ elif menu == "3. Control de Reparto (Vista Conductor)":
         df = st.session_state.df_operaciones
         
         # Mapeo de columnas
-        col_cli = st.session_
+        col_cli = st.session_state.get("c_cliente", df.columns[0])
+        col_dir = st.session_state.get("c_direccion", df.columns[0])
+        col_ubi = st.session_state.get("c_ubicacion", df.columns[0])
+        col_caj = st.session_state.get("c_cajas", df.columns[0])
+        col_ped = st.session_state.get("c_pedido", df.columns[0])
+        col_gcli = st.session_state.get("c_guia_cli", df.columns[0])
+        col_gtda = st.session_state.get("c_guia_tda", df.columns[0])
+        
+        # Métricas de avance
+        total = len(df)
+        entregados = len(df[df["ESTADO_ENTREGA"] == "EN"])
+        st.progress(entregados / total if total > 0 else 0)
+        st.caption(f"Progreso de entrega: **{entregados} de {total} atendidos**")
+        
+        st.divider()
+        
+        # Vista individual por Tarjeta
+        for idx, row in df.iterrows():
+            cliente_nom = str(row[col_cli])
+            direccion_nom = str(row[col_dir])
+            ubicacion_url = str(row[col_ubi])
+            cajas_cant = str(row[col_caj])
+            ped_num = str(row[col_ped])
+            guia_cli_num = str(row[col_gcli])
+            guia_tda_num = str(row[col_gtda])
+            estado_curr = str(row["ESTADO_ENTREGA"])
+            
+            with st.container():
+                c_idx, c_det, c_act = st.columns([1, 5, 2])
+                
+                with c_idx:
+                    st.markdown(f"### **#{idx + 1}**")
+                
+                with c_det:
+                    st.markdown(f"### **{cliente_nom}**")
+                    st.write(f"📍 **Dirección:** {direccion_nom}")
+                    st.write(f"📦 **Cajas:** {cajas_cant} | 📄 **Pedido:** {ped_num}")
+                    st.write(f"🔖 **G.R. Cliente:** {guia_cli_num} | 🚚 **G.R. TDA:** {guia_tda_num}")
+                    
+                    if "http" in ubicacion_url.lower():
+                        st.markdown(f"🗺️ [Ver Ubicación en Mapa / GPS]({ubicacion_url})")
+                    else:
+                        st.caption(f"📌 **Ubicación/Ref:** {ubicacion_url}")
+                        
+                with c_act:
+                    # Selector de estado directo por pedido
+                    nuevo_est = st.selectbox(
+                        "Estado", 
+                        ["ER (En Ruta)", "EN (Entregado)", "FH (Fuera de Hora)"],
+                        index=0 if estado_curr == "ER" else (1 if estado_curr == "EN" else 2),
+                        key=f"st_sel_{idx}"
+                    )
+                    
+                    if st.button("Guardar Cambios", key=f"btn_save_{idx}"):
+                        cod_est = "EN" if "EN" in nuevo_est else ("FH" if "FH" in nuevo_est else "ER")
+                        df.loc[idx, "ESTADO_ENTREGA"] = cod_est
+                        st.success(f"¡Pedido #{idx+1} actualizado!")
+                        st.rerun()
+            st.divider()
+
+        # Exportar Reporte Final
+        if st.button("📥 Descargar Reporte Final de Entregas (Excel)"):
+            archivo_final = f"Reporte_Entregas_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+            df.to_excel(archivo_final, index=False)
+            with open(archivo_final, "rb") as f:
+                st.download_button("⬇️ Guardar Archivo Excel", f, file_name=archivo_final)
+    else:
+        st.warning("⚠️ No hay data cargada. Sube el Excel en el módulo '1. Carga de Data'.")
