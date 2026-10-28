@@ -138,7 +138,6 @@ elif menu == "2. Ruteo Agil por Zonas (Norte/Sur/Este)":
             
             distritos_unicos = df[col_distrito].dropna().unique().tolist()
             
-            # 💡 MEJORA 1: Selección múltiple de distritos para hacerlo en segundos
             distritos_seleccionados = st.multiselect(
                 f"⚡ Selecciona uno o Varios Distritos para la Zona {zona_principal}:",
                 options=distritos_unicos,
@@ -147,19 +146,17 @@ elif menu == "2. Ruteo Agil por Zonas (Norte/Sur/Este)":
             
             pedidos_base = df[df[col_distrito].isin(distritos_seleccionados)] if distritos_seleccionados else pd.DataFrame()
             
-            # 💡 MEJORA 2: Agregar pedidos adicionales de OTRAS zonas al mismo camión
             st.markdown("#### ➕ ¿Deseas agregar pedidos extra de OTRAS zonas a este camión?")
             pedidos_resto = df[~df[col_distrito].isin(distritos_seleccionados)] if distritos_seleccionados else df
             guias_extra = pedidos_resto[col_guia_opt].dropna().astype(str).unique().tolist()
             
             extra_seleccionados = st.multiselect(
-                "Selecciona Guías/Pedidos extra de otras zonas (Ej. pedido de Norte para camion de Sur):",
+                "Selecciona Guías/Pedidos extra de otras zonas (Ej. pedido de Norte para camión de Sur):",
                 options=guias_extra
             )
             
             pedidos_extra = df[df[col_guia_opt].astype(str).isin(extra_seleccionados)] if extra_seleccionados else pd.DataFrame()
             
-            # Consolidado total
             carga_total = pd.concat([pedidos_base, pedidos_extra]).drop_duplicates()
             
             st.write(f"📦 Total de guías/pedidos en este camión: **{len(carga_total)}**")
@@ -256,4 +253,7 @@ elif menu == "3. Control de Reparto en Ruta (FOR-23)":
                     data=f,
                     file_name=archivo_reporte,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="dl_btn_
+                    key="dl_btn_final"
+                )
+    else:
+        st.warning("⚠️ Primero debes subir el **Archivo Final** en el módulo '2. Ruteo Ágil por Zonas (Norte/Sur/Este)'.")
