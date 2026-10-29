@@ -63,6 +63,7 @@ st.markdown("""
 USUARIOS = {
     "admin": {"pass": "mediport2026", "rol": "admin", "nombre": "Administrador Operaciones"},
     "kaique": {"pass": "1234", "rol": "conductor", "nombre": "KAIQUE CHUQUIPIONDO CARDENAS"},
+    "anderson": {"pass": "1234", "rol": "conductor", "nombre": "ANDERSON TUANAMA"},
     "conductor1": {"pass": "1234", "rol": "conductor", "nombre": "CONDUCTOR MEDIPORT 1"}
 }
 
@@ -97,7 +98,7 @@ if not st.session_state.autenticado:
     st.subheader("🔑 Iniciar Sesión")
     
     with st.form("form_login"):
-        user_input = st.text_input("Usuario", placeholder="Ej. kaique").strip().lower()
+        user_input = st.text_input("Usuario", placeholder="Ej. anderson").strip().lower()
         pass_input = st.text_input("Contraseña", type="password", placeholder="••••••••")
         btn_login = st.form_submit_button("🚀 Ingresar", type="primary")
         
@@ -160,7 +161,6 @@ else:
                     col_bul = st.selectbox("Bultos / Cajas", cols, index=min(4, len(cols)-1))
                     col_ubi = st.selectbox("Ubicación GPS / Dirección", cols, index=min(5, len(cols)-1))
                     
-                    # Opción con verificación de Placa
                     opciones_placa = ["[USAR PLACA POR DEFECTO: AUG-728]"] + cols
                     col_plc_sel = st.selectbox("Placa del Vehículo (Opcional)", opciones_placa, index=0)
                     
@@ -171,7 +171,6 @@ else:
                         placa_serie = "AUG-728"
                     else:
                         placa_serie = df[col_plc_sel].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.upper()
-                        # Si la columna seleccionada tiene datos tipo comprobante (cambian fila a fila), forzar valor agrupado
                         if df[col_plc_sel].nunique() == len(df):
                             placa_serie = "AUG-728"
                     
@@ -203,7 +202,6 @@ else:
             num_unidades = df_act.groupby(["Placa", "Conductor"]).ngroups
             st.success(f"Carga Activa: {len(df_act)} pedidos registrados en {num_unidades} ruta(s) de vehículo.")
             
-            # Tabla de resumen agrupada
             st.markdown("#### 📊 Resumen Consolidado de Rutas Activas:")
             resumen_df = df_act.groupby(["Placa", "Conductor"]).size().reset_index(name="Cant. Pedidos")
             st.dataframe(resumen_df, use_container_width=True)
