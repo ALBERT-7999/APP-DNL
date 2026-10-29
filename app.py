@@ -59,12 +59,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- USUARIOS REGISTRADOS ---
+# --- USUARIOS Y CONTRASEÑAS REGISTRADAS (EQUIPO COMPLETO) ---
 USUARIOS = {
     "admin": {"pass": "mediport2026", "rol": "admin", "nombre": "Administrador Operaciones"},
     "kaique": {"pass": "1234", "rol": "conductor", "nombre": "KAIQUE CHUQUIPIONDO CARDENAS"},
     "anderson": {"pass": "1234", "rol": "conductor", "nombre": "ANDERSON TUANAMA"},
-    "conductor1": {"pass": "1234", "rol": "conductor", "nombre": "CONDUCTOR MEDIPORT 1"}
+    "fernando": {"pass": "1234", "rol": "conductor", "nombre": "FERNANDO MARTÍNEZ"},
+    "ronald": {"pass": "1234", "rol": "conductor", "nombre": "RONALD CAJAVILCA"},
+    "jorge": {"pass": "1234", "rol": "conductor", "nombre": "JORGE RIVERA"},
+    "lucia": {"pass": "1234", "rol": "conductor", "nombre": "LUCÍA ROQUE"},
+    "bartolome": {"pass": "1234", "rol": "conductor", "nombre": "BARTOLOMÉ ROQUE"},
+    "tono": {"pass": "1234", "rol": "conductor", "nombre": "TOÑO RIVERA"},
+    "daniel": {"pass": "1234", "rol": "conductor", "nombre": "DANIEL PÉREZ"},
+    "gianela": {"pass": "1234", "rol": "conductor", "nombre": "GIANELA GUTIÉRREZ"}
 }
 
 def cargar_ruta_disco():
@@ -98,7 +105,7 @@ if not st.session_state.autenticado:
     st.subheader("🔑 Iniciar Sesión")
     
     with st.form("form_login"):
-        user_input = st.text_input("Usuario", placeholder="Ej. anderson").strip().lower()
+        user_input = st.text_input("Usuario", placeholder="Ingresa tu usuario").strip().lower()
         pass_input = st.text_input("Contraseña", type="password", placeholder="••••••••")
         btn_login = st.form_submit_button("🚀 Ingresar", type="primary")
         
