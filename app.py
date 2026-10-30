@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import urllib.parse
 from datetime import datetime
 import streamlit.components.v1 as components
 
@@ -353,10 +354,43 @@ else:
                         df_global.at[real_idx, "Observaciones"] = txt_obs
                         guardar_ruta_disco(df_global)
 
+                    # --- CARGA DE FOTO Y GENERACIÓN DE BOTÓN DE WHATSAPP ---
                     foto_file = st.file_uploader(f"📷 Adjuntar Foto (#{num_item})", type=["png", "jpg", "jpeg"], key=f"foto_{real_idx}")
                     if foto_file is not None:
                         df_global.at[real_idx, "Foto_Estado"] = "Foto Carga Ok"
                         guardar_ruta_disco(df_global)
+                        
+                        # Texto prellenado automático para el mensaje de WhatsApp
+                        mensaje_texto = (
+                            f"🚚 *EVIDENCIA DE REPARTO - MEDIPORT*\n\n"
+                            f"📌 *Cliente:* {cliente}\n"
+                            f"📄 *Guía:* {guia}\n"
+                            f"📍 *Distrito:* {distrito}\n"
+                            f"📦 *Bultos:* {bultos}\n"
+                            f"⏱️ *Hora Entrega:* {row['Hora_Entrega']}\n"
+                            f"✅ *Estado:* {row['Estado']}"
+                        )
+                        mensaje_encoded = urllib.parse.quote(mensaje_texto)
+                        url_whatsapp = f"https://api.whatsapp.com/send?text={mensaje_encoded}"
+                        
+                        st.markdown(
+                            f"""
+                            <a href="{url_whatsapp}" target="_blank" style="text-decoration: none;">
+                                <div style="
+                                    background-color: #25D366;
+                                    color: white;
+                                    text-align: center;
+                                    padding: 12px;
+                                    border-radius: 8px;
+                                    font-weight: bold;
+                                    margin-top: 8px;
+                                    font-size: 14px;">
+                                    📲 Enviar Confirmación al Grupo de WhatsApp
+                                </div>
+                            </a>
+                            """,
+                            unsafe_allow_html=True
+                        )
 
                     st.divider()
 
